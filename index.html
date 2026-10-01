@@ -12,7 +12,7 @@
   body {
     margin: 0; min-height: 100vh; background: var(--bg); color: var(--ink);
     font-family: -apple-system, system-ui, sans-serif;
-    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
     user-select: none; -webkit-user-select: none;
   }
   h1 { font-weight: 600; letter-spacing: .05em; margin: 0; }
@@ -20,6 +20,7 @@
   #scores div { display: flex; flex-direction: column; }
   #scores span { font-size: 11px; letter-spacing: .12em; opacity: .5; }
   #scores b { font-size: 28px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  #info { font-size: 13px; letter-spacing: .08em; opacity: .6; height: 16px; }
   #board {
     display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px;
     width: min(92vw, 380px); aspect-ratio: 1;
@@ -39,19 +40,29 @@
   .piece .b { border-radius: 5px; background: var(--block); }
   .piece .e { background: transparent; }
   .ghost { position: fixed; pointer-events: none; z-index: 10; opacity: .92; }
-  #over {
+  #bar { display: flex; gap: 28px; }
+  .link { background: none; border: 0; font-size: 14px; color: var(--ink); opacity: .6; padding: 8px 4px; letter-spacing: .04em; }
+
+  .overlay {
     position: fixed; inset: 0; z-index: 20; display: none;
     flex-direction: column; align-items: center; justify-content: center; gap: 10px;
-    background: rgba(245,243,238,.94); text-align: center;
+    background: rgba(245,243,238,.96); text-align: center; padding: 20px;
   }
-  #over.show { display: flex; }
-  #over h2 { margin: 0; font-weight: 600; letter-spacing: .05em; }
-  #over .big { font-size: 56px; font-weight: 600; }
-  #over .rec { color: var(--block); font-weight: 600; height: 22px; }
-  #over button {
-    margin-top: 14px; padding: 14px 32px; font-size: 17px; border: 0; border-radius: 12px;
-    background: var(--block); color: #fff; font-weight: 600;
+  .overlay.show { display: flex; }
+  .overlay h2 { margin: 0; font-weight: 600; letter-spacing: .05em; }
+  .big { font-size: 56px; font-weight: 600; }
+  .rec { color: var(--block); font-weight: 600; min-height: 22px; }
+  .btn {
+    padding: 14px 32px; font-size: 17px; border: 0; border-radius: 12px;
+    background: var(--block); color: #fff; font-weight: 600; min-width: 230px;
   }
+  .btn.sec { background: transparent; color: var(--ink); font-weight: 500; opacity: .7; padding: 10px; min-width: 0; font-size: 15px; }
+  #codeInput {
+    font-size: 24px; text-align: center; letter-spacing: .12em; text-transform: uppercase;
+    padding: 12px; width: min(80vw, 280px); border: 2px solid var(--cell); border-radius: 12px;
+    background: #fff; color: var(--ink); user-select: text; -webkit-user-select: text;
+  }
+  #joinErr { color: #b3503f; min-height: 20px; font-size: 14px; }
 </style>
 </head>
 <body>
@@ -60,14 +71,34 @@
     <div><span>PUNTOS</span><b id="score">0</b></div>
     <div><span>RÉCORD</span><b id="best">0</b></div>
   </div>
+  <div id="info"></div>
   <div id="board"></div>
   <div id="tray"></div>
+  <div id="bar">
+    <button class="link" id="btnNew">Nueva partida</button>
+    <button class="link" id="btnJoin">Introducir código</button>
+  </div>
 
-  <div id="over">
+  <!-- Fin de partida -->
+  <div class="overlay" id="over">
     <h2>Fin de partida</h2>
     <div class="big" id="finalScore">0</div>
     <div class="rec" id="recMsg"></div>
-    <button id="again">Jugar otra vez</button>
+    <div class="rec" id="vsMsg"></div>
+    <button class="btn" id="btnShare">Compartir reto</button>
+    <button class="btn sec" id="btnAgain">Jugar otra vez (código nuevo)</button>
+    <button class="btn sec" id="btnRepeat">Repetir este código</button>
+    <button class="btn sec" id="btnJoin2">Introducir código</button>
+  </div>
+
+  <!-- Introducir código -->
+  <div class="overlay" id="join">
+    <h2>Introducir código</h2>
+    <div style="opacity:.6;font-size:14px">Ejemplo: K7X2 o K7X2-340</div>
+    <input id="codeInput" type="text" autocapitalize="characters" autocomplete="off" autocorrect="off" spellcheck="false" maxlength="200" placeholder="CÓDIGO">
+    <div id="joinErr"></div>
+    <button class="btn" id="btnGo">Jugar</button>
+    <button class="btn sec" id="btnCancel">Cancelar</button>
   </div>
 
 <script>
@@ -85,16 +116,51 @@ const SHAPES = [
   [[1,1,1],[0,1,0]]
 ];
 
-// En la Fase 4 sustituiremos esto por un generador con código (semilla)
+// ---------- código de partida -> piezas idénticas ----------
+const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+function randomCode() {
+  let s = '';
+  for (let i = 0; i < 4; i++) s += ALPHABET[Math.floor(Math.random() * ALPHABET.length)];
+  return s;
+}
+function hashStr(s) {
+  let h = 1779033703 ^ s.length;
+  for (let i = 0; i < s.length; i++) {
+    h = Math.imul(h ^ s.charCodeAt(i), 3432918353);
+    h = (h << 13) | (h >>> 19);
+  }
+  h = Math.imul(h ^ (h >>> 16), 2246822507);
+  h = Math.imul(h ^ (h >>> 13), 3266489909);
+  return (h ^ (h >>> 16)) >>> 0;
+}
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+// Acepta "K7X2", "K7X2-340" o un mensaje entero de reto pegado
+function parseCode(text) {
+  const t = text.trim().toUpperCase();
+  let m = t.match(/^([A-Z0-9]{4})(?:\s*-\s*(\d{1,6}))?$/);
+  if (!m) m = t.match(/\b([A-Z0-9]{4})-(\d{1,6})\b/);
+  if (!m) return null;
+  return { code: m[1], target: m[2] ? parseInt(m[2], 10) : null };
+}
+
 let rand = Math.random;
 
 const boardEl = document.getElementById('board');
 const trayEl = document.getElementById('tray');
 const scoreEl = document.getElementById('score');
 const bestEl = document.getElementById('best');
+const infoEl = document.getElementById('info');
 const overEl = document.getElementById('over');
+const joinEl = document.getElementById('join');
 
-let grid, pieces, score, best, locked, over;
+let grid, pieces, score, best, locked, over, currentCode, targetScore;
 const cells = [];
 
 // ---------- récord (se guarda en el móvil) ----------
@@ -125,6 +191,7 @@ function cellSize() {
 function updateScore() {
   scoreEl.textContent = score;
   bestEl.textContent = best;
+  infoEl.textContent = 'Código ' + currentCode + (targetScore != null ? '  ·  Objetivo ' + targetScore : '');
 }
 
 // ---------- piezas ----------
@@ -177,7 +244,6 @@ function place(shape, r0, c0) {
   }));
   return n;
 }
-// Devuelve filas y columnas completas
 function findFull() {
   const rows = [], cols = [];
   for (let r = 0; r < SIZE; r++) if (grid[r].every(v => v === 1)) rows.push(r);
@@ -204,7 +270,7 @@ function afterMove() {
 }
 
 function finishPlacement(shape, row, col, idx) {
-  score += place(shape, row, col);        // 1 punto por casilla colocada
+  score += place(shape, row, col);
   pieces[idx] = null;
   drawBoard();
 
@@ -212,7 +278,6 @@ function finishPlacement(shape, row, col, idx) {
   const lines = rows.length + cols.length;
   if (lines === 0) { afterMove(); return; }
 
-  // animación y borrado
   locked = true;
   const toClear = new Set();
   rows.forEach(r => { for (let c = 0; c < SIZE; c++) toClear.add(r * SIZE + c); });
@@ -221,7 +286,7 @@ function finishPlacement(shape, row, col, idx) {
 
   setTimeout(() => {
     toClear.forEach(i => { grid[Math.floor(i / SIZE)][i % SIZE] = 0; });
-    score += 10 * lines * lines;          // varias líneas a la vez puntúan mucho más
+    score += 10 * lines * lines;
     locked = false;
     afterMove();
   }, 200);
@@ -232,19 +297,75 @@ function endGame() {
   document.getElementById('finalScore').textContent = score;
   document.getElementById('recMsg').textContent =
     (score > 0 && score >= best) ? '¡Nuevo récord!' : '';
+  let vs = '';
+  if (targetScore != null) {
+    if (score > targetScore) vs = '¡Ganaste! Superas el objetivo por ' + (score - targetScore);
+    else if (score === targetScore) vs = 'Empate con el objetivo';
+    else vs = 'Te han faltado ' + (targetScore - score) + ' puntos para ganar';
+  }
+  document.getElementById('vsMsg').textContent = vs;
   overEl.classList.add('show');
 }
 
-function newGame() {
+// ---------- nueva partida ----------
+function newGame(code, target) {
+  currentCode = code || randomCode();
+  targetScore = (target === undefined) ? null : target;
+  rand = mulberry32(hashStr(currentCode));
   grid = Array.from({ length: SIZE }, () => Array(SIZE).fill(0));
   score = 0; locked = false; over = false;
   best = loadBest();
   overEl.classList.remove('show');
+  joinEl.classList.remove('show');
   updateScore();
   drawBoard();
   dealPieces();
 }
-document.getElementById('again').addEventListener('click', newGame);
+
+// ---------- compartir reto ----------
+async function shareChallenge() {
+  const url = location.origin + location.pathname;
+  const text = 'Reto en Bloques: ' + currentCode + '-' + score +
+    '\nIntroduce este código en el juego y supera mis ' + score + ' puntos.\n' + url;
+  try {
+    if (navigator.share) { await navigator.share({ text }); return; }
+  } catch (e) {
+    if (e && e.name === 'AbortError') return;
+  }
+  try {
+    await navigator.clipboard.writeText(text);
+    alert('Copiado. Pégalo en WhatsApp.');
+  } catch (e) {
+    prompt('Copia este texto:', text);
+  }
+}
+
+// ---------- introducir código ----------
+function openJoin() {
+  document.getElementById('codeInput').value = '';
+  document.getElementById('joinErr').textContent = '';
+  joinEl.classList.add('show');
+}
+function submitJoin() {
+  const parsed = parseCode(document.getElementById('codeInput').value);
+  if (!parsed) {
+    document.getElementById('joinErr').textContent = 'Código no válido. Ejemplo: K7X2 o K7X2-340';
+    return;
+  }
+  newGame(parsed.code, parsed.target);
+}
+
+document.getElementById('btnNew').addEventListener('click', () => {
+  if (!over && score > 0 && !confirm('¿Abandonar la partida actual?')) return;
+  newGame();
+});
+document.getElementById('btnJoin').addEventListener('click', openJoin);
+document.getElementById('btnJoin2').addEventListener('click', openJoin);
+document.getElementById('btnAgain').addEventListener('click', () => newGame());
+document.getElementById('btnRepeat').addEventListener('click', () => newGame(currentCode, targetScore));
+document.getElementById('btnShare').addEventListener('click', shareChallenge);
+document.getElementById('btnGo').addEventListener('click', submitJoin);
+document.getElementById('btnCancel').addEventListener('click', () => joinEl.classList.remove('show'));
 
 // ---------- arrastrar y soltar ----------
 function startDrag(e, idx, slot) {
