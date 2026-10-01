@@ -437,7 +437,7 @@ if (darkQuery) {
 const $ = id => document.getElementById(id);
 const boardEl = $('board'), trayEl = $('tray'), scoreEl = $('score'), bestEl = $('best'), overEl = $('over');
 
-let grid, pieces, score, best, locked, over, currentCode, targetScore, gameDiff = 'N', newRecord = false, shown = 0, raf = 0;
+let grid, pieces, score, best, locked, over, currentCode, targetScore, gameDiff = 'N', newRecord = false, shown = 0, raf = 0, dealN = 0;
 const cells = [];
 
 // ---------- pantallas ----------
@@ -495,8 +495,71 @@ function makePiece(shape, size) {
   }));
   return el;
 }
+// ---------- tandas siempre jugables ----------
+// Comprueba, sobre el tablero actual, cuántas de las 3 piezas se pueden colocar seguidas
+// en algún orden (contando las líneas que se van borrando por el camino). Devuelve 0-3.
+const MAX_ATTEMPTS = 80, NODE_LIMIT = 60000;
+function maxPlaceable(shapes) {
+  let best = 0, nodes = 0;
+  const used = shapes.map(() => false);
+
+  function fits(g, s, r0, c0) {
+    for (let r = 0; r < s.length; r++)
+      for (let c = 0; c < s[0].length; c++)
+        if (s[r][c] && g[(r0 + r) * SIZE + c0 + c]) return false;
+    return true;
+  }
+  function put(g, s, r0, c0) {
+    const n = g.slice();
+    for (let r = 0; r < s.length; r++)
+      for (let c = 0; c < s[0].length; c++)
+        if (s[r][c]) n[(r0 + r) * SIZE + c0 + c] = 1;
+    const fullR = [], fullC = [];
+    for (let r = 0; r < SIZE; r++) { let ok = true; for (let c = 0; c < SIZE && ok; c++) if (!n[r * SIZE + c]) ok = false; if (ok) fullR.push(r); }
+    for (let c = 0; c < SIZE; c++) { let ok = true; for (let r = 0; r < SIZE && ok; r++) if (!n[r * SIZE + c]) ok = false; if (ok) fullC.push(c); }
+    fullR.forEach(r => { for (let c = 0; c < SIZE; c++) n[r * SIZE + c] = 0; });
+    fullC.forEach(c => { for (let r = 0; r < SIZE; r++) n[r * SIZE + c] = 0; });
+    return n;
+  }
+  function dfs(g, placed) {
+    if (placed > best) best = placed;
+    if (best === shapes.length || nodes > NODE_LIMIT) return;
+    const seen = new Set();
+    for (let i = 0; i < shapes.length; i++) {
+      if (used[i]) continue;
+      const key = JSON.stringify(shapes[i]);
+      if (seen.has(key)) continue;           // dos piezas iguales dan el mismo resultado
+      seen.add(key);
+      const s = shapes[i];
+      used[i] = true;
+      for (let r0 = 0; r0 <= SIZE - s.length; r0++) {
+        for (let c0 = 0; c0 <= SIZE - s[0].length; c0++) {
+          if (!fits(g, s, r0, c0)) continue;
+          nodes++;
+          dfs(put(g, s, r0, c0), placed + 1);
+          if (best === shapes.length || nodes > NODE_LIMIT) { used[i] = false; return; }
+        }
+      }
+      used[i] = false;
+    }
+  }
+  dfs(Uint8Array.from(grid.flat()), 0);
+  return best;
+}
+
+// Cada tanda se saca de una semilla propia (código + nº de tanda + intento). Si el primer
+// intento no se puede colocar entero en tu tablero, se prueba el siguiente hasta encontrar uno que sí.
 function dealPieces() {
-  pieces = [0, 1, 2].map(() => pickShape());
+  let bestDeal = null, bestCount = -1;
+  for (let a = 0; a < MAX_ATTEMPTS; a++) {
+    rand = mulberry32(hashStr(currentCode + '#' + dealN + '#' + a));
+    const cand = [0, 1, 2].map(() => pickShape());
+    const m = maxPlaceable(cand);
+    if (m > bestCount) { bestCount = m; bestDeal = cand; }
+    if (m === 3) break;
+  }
+  dealN++;
+  pieces = bestDeal;
   drawTray();
 }
 function drawTray() {
@@ -624,7 +687,7 @@ function newGame(code, target) {
   currentCode = code || randomCode(data.diff);
   gameDiff = diffOf(currentCode);
   targetScore = (target === undefined) ? null : target;
-  rand = mulberry32(hashStr(currentCode));
+  dealN = 0;
   grid = Array.from({ length: SIZE }, () => Array(SIZE).fill(0));
   score = 0; locked = false; over = false; newRecord = false;
   best = data.bests[gameDiff];
