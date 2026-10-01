@@ -12,17 +12,22 @@
   body {
     margin: 0; min-height: 100vh; background: var(--bg); color: var(--ink);
     font-family: -apple-system, system-ui, sans-serif;
-    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 28px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px;
     user-select: none; -webkit-user-select: none;
   }
   h1 { font-weight: 600; letter-spacing: .05em; margin: 0; }
+  #scores { display: flex; gap: 40px; text-align: center; }
+  #scores div { display: flex; flex-direction: column; }
+  #scores span { font-size: 11px; letter-spacing: .12em; opacity: .5; }
+  #scores b { font-size: 28px; font-weight: 600; font-variant-numeric: tabular-nums; }
   #board {
     display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px;
     width: min(92vw, 380px); aspect-ratio: 1;
   }
-  .cell { background: var(--cell); border-radius: 6px; }
+  .cell { background: var(--cell); border-radius: 6px; transition: transform .18s, background .18s; }
   .cell.on { background: var(--block); }
   .cell.preview { background: var(--ok); }
+  .cell.clearing { background: #fff; transform: scale(.55); }
   #tray {
     display: flex; justify-content: space-around; align-items: center;
     width: min(92vw, 380px); height: 110px;
@@ -34,14 +39,36 @@
   .piece .b { border-radius: 5px; background: var(--block); }
   .piece .e { background: transparent; }
   .ghost { position: fixed; pointer-events: none; z-index: 10; opacity: .92; }
-  small { opacity: .5; }
+  #over {
+    position: fixed; inset: 0; z-index: 20; display: none;
+    flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+    background: rgba(245,243,238,.94); text-align: center;
+  }
+  #over.show { display: flex; }
+  #over h2 { margin: 0; font-weight: 600; letter-spacing: .05em; }
+  #over .big { font-size: 56px; font-weight: 600; }
+  #over .rec { color: var(--block); font-weight: 600; height: 22px; }
+  #over button {
+    margin-top: 14px; padding: 14px 32px; font-size: 17px; border: 0; border-radius: 12px;
+    background: var(--block); color: #fff; font-weight: 600;
+  }
 </style>
 </head>
 <body>
   <h1>Bloques</h1>
+  <div id="scores">
+    <div><span>PUNTOS</span><b id="score">0</b></div>
+    <div><span>RÉCORD</span><b id="best">0</b></div>
+  </div>
   <div id="board"></div>
   <div id="tray"></div>
-  <small>Fase 2: arrastra las piezas al tablero</small>
+
+  <div id="over">
+    <h2>Fin de partida</h2>
+    <div class="big" id="finalScore">0</div>
+    <div class="rec" id="recMsg"></div>
+    <button id="again">Jugar otra vez</button>
+  </div>
 
 <script>
 const SIZE = 8, GAP = 4, TRAY_CELL = 20, LIFT = 50;
@@ -58,29 +85,46 @@ const SHAPES = [
   [[1,1,1],[0,1,0]]
 ];
 
+// En la Fase 4 sustituiremos esto por un generador con código (semilla)
+let rand = Math.random;
+
 const boardEl = document.getElementById('board');
 const trayEl = document.getElementById('tray');
-const grid = Array.from({length: SIZE}, () => Array(SIZE).fill(0));
+const scoreEl = document.getElementById('score');
+const bestEl = document.getElementById('best');
+const overEl = document.getElementById('over');
+
+let grid, pieces, score, best, locked, over;
 const cells = [];
-let pieces = [];
+
+// ---------- récord (se guarda en el móvil) ----------
+function loadBest() {
+  try { return parseInt(localStorage.getItem('bloques_best') || '0', 10) || 0; }
+  catch (e) { return 0; }
+}
+function saveBest(v) {
+  try { localStorage.setItem('bloques_best', String(v)); } catch (e) {}
+}
 
 // ---------- tablero ----------
-for (let r = 0; r < SIZE; r++) {
-  for (let c = 0; c < SIZE; c++) {
-    const d = document.createElement('div');
-    d.className = 'cell';
-    boardEl.appendChild(d);
-    cells.push(d);
-  }
+for (let i = 0; i < SIZE * SIZE; i++) {
+  const d = document.createElement('div');
+  d.className = 'cell';
+  boardEl.appendChild(d);
+  cells.push(d);
 }
 function drawBoard() {
   cells.forEach((d, i) => {
-    d.classList.remove('preview');
+    d.classList.remove('preview', 'clearing');
     d.classList.toggle('on', grid[Math.floor(i / SIZE)][i % SIZE] === 1);
   });
 }
 function cellSize() {
   return (boardEl.getBoundingClientRect().width - GAP * (SIZE - 1)) / SIZE;
+}
+function updateScore() {
+  scoreEl.textContent = score;
+  bestEl.textContent = best;
 }
 
 // ---------- piezas ----------
@@ -98,7 +142,7 @@ function makePiece(shape, size) {
   return el;
 }
 function dealPieces() {
-  pieces = [0, 1, 2].map(() => SHAPES[Math.floor(Math.random() * SHAPES.length)]);
+  pieces = [0, 1, 2].map(() => SHAPES[Math.floor(rand() * SHAPES.length)]);
   drawTray();
 }
 function drawTray() {
@@ -114,7 +158,7 @@ function drawTray() {
   });
 }
 
-// ---------- reglas básicas de colocación ----------
+// ---------- reglas ----------
 function canPlace(shape, r0, c0) {
   for (let r = 0; r < shape.length; r++) {
     for (let c = 0; c < shape[0].length; c++) {
@@ -127,11 +171,84 @@ function canPlace(shape, r0, c0) {
   return true;
 }
 function place(shape, r0, c0) {
-  shape.forEach((row, r) => row.forEach((v, c) => { if (v) grid[r0 + r][c0 + c] = 1; }));
+  let n = 0;
+  shape.forEach((row, r) => row.forEach((v, c) => {
+    if (v) { grid[r0 + r][c0 + c] = 1; n++; }
+  }));
+  return n;
 }
+// Devuelve filas y columnas completas
+function findFull() {
+  const rows = [], cols = [];
+  for (let r = 0; r < SIZE; r++) if (grid[r].every(v => v === 1)) rows.push(r);
+  for (let c = 0; c < SIZE; c++) if (grid.every(row => row[c] === 1)) cols.push(c);
+  return { rows, cols };
+}
+function anyMoveLeft() {
+  for (const shape of pieces) {
+    if (!shape) continue;
+    for (let r = 0; r < SIZE; r++)
+      for (let c = 0; c < SIZE; c++)
+        if (canPlace(shape, r, c)) return true;
+  }
+  return false;
+}
+
+// ---------- flujo de una jugada ----------
+function afterMove() {
+  if (pieces.every(p => p === null)) dealPieces(); else drawTray();
+  if (score > best) { best = score; saveBest(best); }
+  updateScore();
+  drawBoard();
+  if (!anyMoveLeft()) endGame();
+}
+
+function finishPlacement(shape, row, col, idx) {
+  score += place(shape, row, col);        // 1 punto por casilla colocada
+  pieces[idx] = null;
+  drawBoard();
+
+  const { rows, cols } = findFull();
+  const lines = rows.length + cols.length;
+  if (lines === 0) { afterMove(); return; }
+
+  // animación y borrado
+  locked = true;
+  const toClear = new Set();
+  rows.forEach(r => { for (let c = 0; c < SIZE; c++) toClear.add(r * SIZE + c); });
+  cols.forEach(c => { for (let r = 0; r < SIZE; r++) toClear.add(r * SIZE + c); });
+  toClear.forEach(i => cells[i].classList.add('clearing'));
+
+  setTimeout(() => {
+    toClear.forEach(i => { grid[Math.floor(i / SIZE)][i % SIZE] = 0; });
+    score += 10 * lines * lines;          // varias líneas a la vez puntúan mucho más
+    locked = false;
+    afterMove();
+  }, 200);
+}
+
+function endGame() {
+  over = true;
+  document.getElementById('finalScore').textContent = score;
+  document.getElementById('recMsg').textContent =
+    (score > 0 && score >= best) ? '¡Nuevo récord!' : '';
+  overEl.classList.add('show');
+}
+
+function newGame() {
+  grid = Array.from({ length: SIZE }, () => Array(SIZE).fill(0));
+  score = 0; locked = false; over = false;
+  best = loadBest();
+  overEl.classList.remove('show');
+  updateScore();
+  drawBoard();
+  dealPieces();
+}
+document.getElementById('again').addEventListener('click', newGame);
 
 // ---------- arrastrar y soltar ----------
 function startDrag(e, idx, slot) {
+  if (locked || over) return;
   e.preventDefault();
   const shape = pieces[idx];
   const cs = cellSize(), step = cs + GAP;
@@ -170,13 +287,11 @@ function startDrag(e, idx, slot) {
     window.removeEventListener('pointercancel', end);
     ghost.remove();
     if (target) {
-      place(shape, target.row, target.col);
-      pieces[idx] = null;
-      if (pieces.every(p => p === null)) dealPieces(); else drawTray();
+      finishPlacement(shape, target.row, target.col, idx);
     } else {
       slot.classList.remove('dragging');
+      drawBoard();
     }
-    drawBoard();
   }
   window.addEventListener('pointermove', move);
   window.addEventListener('pointerup', end);
@@ -184,8 +299,7 @@ function startDrag(e, idx, slot) {
   move(e);
 }
 
-drawBoard();
-dealPieces();
+newGame();
 </script>
 </body>
 </html>
