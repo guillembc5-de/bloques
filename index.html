@@ -7,6 +7,8 @@
 <meta name="apple-mobile-web-app-title" content="Bloques">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="theme-color" content="#f4f1ea">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <title>Bloques</title>
 <style>
   :root {
@@ -58,8 +60,7 @@
   .logo i { width: 30px; height: 30px; border-radius: 8px; background: var(--block);
     box-shadow: inset 0 -3px 0 rgba(0,0,0,.14), inset 0 2px 0 rgba(255,255,255,.28); }
   .logo i.e { background: var(--cell); box-shadow: none; }
-  .title { margin: 0; font-size: 32px; font-weight: 300; letter-spacing: .38em; padding-left: .38em; }
-  .tag { margin: 0 0 30px; font-size: 13px; letter-spacing: .1em; opacity: .45; }
+  .title { margin: 0 0 34px; font-size: 32px; font-weight: 300; letter-spacing: .38em; padding-left: .38em; }
   #home .btn + .btn { margin-top: 2px; }
 
   /* ---------- juego ---------- */
@@ -168,7 +169,6 @@
   <div class="screen active" id="home">
     <div class="logo"><i></i><i></i><i></i><i class="e"></i></div>
     <h1 class="title">BLOQUES</h1>
-    <p class="tag">un puzzle para el tren</p>
     <button class="btn" id="btnPlay">Nueva partida</button>
     <button class="btn sec" id="btnJoin">Introducir código</button>
     <button class="btn sec" id="btnRecords">Récords</button>
@@ -237,20 +237,26 @@ const SHAPES = [
   [[1,1,1],[0,1,0]]
 ];
 
-// Paleta: cambia cada 500 puntos (b = bloque, p = vista previa)
-const PALETTE = [
-  { b: '#6b8f9c', p: '#b4cbd2' }, //    0 azul pizarra
-  { b: '#7fa88a', p: '#bcd4c2' }, //  500 verde salvia
-  { b: '#d98b7a', p: '#efc4ba' }, // 1000 coral
-  { b: '#d3a65a', p: '#ebd3a6' }, // 1500 ocre
-  { b: '#9a8ac4', p: '#cfc6e4' }, // 2000 lavanda
-  { b: '#cc7f9c', p: '#e8bccb' }, // 2500 rosa
-  { b: '#3f8f8a', p: '#a5cfcc' }, // 3000 verde azulado
-  { b: '#5b7fc7', p: '#b0c4e8' }  // 3500 azul cobalto
+// Paleta: un color nuevo cada 500 puntos, sin repetir ninguno.
+// 40 colores + bronce (20000), plata (20500) y oro (21000): el oro es el máximo y ya no cambia.
+const COLORS = [
+  '#6b8f9c', '#7fa88a', '#d98b7a', '#d3a65a', '#9a8ac4', '#cc7f9c', '#3f8f8a', '#5b7fc7',
+  '#ab3636', '#8f36ab', '#3bba3b', '#83d8d8', '#3642ab', '#94774c', '#b3d883', '#90ba3b',
+  '#45c4af', '#c4457c', '#c154c9', '#64ce67', '#62944c', '#c45e45', '#73aad3', '#d883d8',
+  '#7054c9', '#944c62', '#83d89f', '#c8b193', '#674c94', '#3bba7f', '#366cab', '#ab9736',
+  '#a7b36b', '#b36b74', '#995dac', '#3b9cba', '#bcc445', '#ba3ba9', '#b3916b', '#5dac6a',
+  '#b07a46', // bronce
+  '#aeb4bc', // plata
+  '#dcaa28'  // oro
 ];
+function lighten(hex, k) {
+  const c = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16));
+  return '#' + c.map(v => Math.round(v + (255 - v) * k).toString(16).padStart(2, '0')).join('');
+}
+const PALETTE = COLORS.map(b => ({ b, p: lighten(b, 0.5) }));
 let paletteIdx = -1;
 function setPalette(level) {
-  const idx = level % PALETTE.length;
+  const idx = Math.min(level, PALETTE.length - 1);
   if (idx === paletteIdx) return;
   paletteIdx = idx;
   const root = document.documentElement.style;
@@ -656,6 +662,13 @@ grid = Array.from({ length: SIZE }, () => Array(SIZE).fill(0));
 pieces = [null, null, null]; score = 0; best = data.best; locked = false; over = true;
 setPalette(0);
 showScreen('home');
+
+// ---------- modo offline ----------
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  });
+}
 </script>
 </body>
 </html>
