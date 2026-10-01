@@ -4,105 +4,226 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Bloques">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#f4f1ea">
 <title>Bloques</title>
 <style>
-  :root { --bg:#f5f3ee; --cell:#e4e0d6; --ink:#2b2b2b; --block:#6b8f9c; --ok:#a9c4cd; }
+  :root {
+    --bg:#f4f1ea; --cell:#e6e2d8; --ink:#2b2b2b;
+    --block:#6b8f9c; --ok:#b4cbd2;
+  }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  html, body { overscroll-behavior: none; }
+  html, body { height: 100%; margin: 0; overflow: hidden; overscroll-behavior: none; }
   body {
-    margin: 0; min-height: 100vh; background: var(--bg); color: var(--ink);
-    font-family: -apple-system, system-ui, sans-serif;
-    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
-    user-select: none; -webkit-user-select: none;
+    background: var(--bg); color: var(--ink);
+    font-family: -apple-system, "SF Pro Text", system-ui, sans-serif;
+    user-select: none; -webkit-user-select: none; touch-action: manipulation;
   }
-  h1 { font-weight: 600; letter-spacing: .05em; margin: 0; }
-  #scores { display: flex; gap: 40px; text-align: center; }
-  #scores div { display: flex; flex-direction: column; }
-  #scores span { font-size: 11px; letter-spacing: .12em; opacity: .5; }
-  #scores b { font-size: 28px; font-weight: 600; font-variant-numeric: tabular-nums; }
-  #info { font-size: 13px; letter-spacing: .08em; opacity: .6; height: 16px; }
-  #board {
-    display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px;
-    width: min(92vw, 380px); aspect-ratio: 1;
-  }
-  .cell { background: var(--cell); border-radius: 6px; transition: transform .18s, background .18s; }
-  .cell.on { background: var(--block); }
-  .cell.preview { background: var(--ok); }
-  .cell.clearing { background: #fff; transform: scale(.55); }
-  #tray {
-    display: flex; justify-content: space-around; align-items: center;
-    width: min(92vw, 380px); height: 110px;
-  }
-  .slot { width: 30%; height: 100%; display: flex; align-items: center; justify-content: center; touch-action: none; }
-  .slot.used { visibility: hidden; }
-  .slot.dragging { opacity: .25; }
-  .piece { display: grid; }
-  .piece .b { border-radius: 5px; background: var(--block); }
-  .piece .e { background: transparent; }
-  .ghost { position: fixed; pointer-events: none; z-index: 10; opacity: .92; }
-  #bar { display: flex; gap: 28px; }
-  .link { background: none; border: 0; font-size: 14px; color: var(--ink); opacity: .6; padding: 8px 4px; letter-spacing: .04em; }
+  button { font-family: inherit; touch-action: manipulation; }
 
-  .overlay {
-    position: fixed; inset: 0; z-index: 20; display: none;
-    flex-direction: column; align-items: center; justify-content: center; gap: 10px;
-    background: rgba(245,243,238,.96); text-align: center; padding: 20px;
+  /* ---------- pantallas ---------- */
+  .screen {
+    position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: calc(env(safe-area-inset-top) + 16px) 16px calc(env(safe-area-inset-bottom) + 20px);
+    opacity: 0; visibility: hidden; transform: translateY(10px);
+    transition: opacity .28s ease, transform .28s ease, visibility 0s .28s;
   }
-  .overlay.show { display: flex; }
-  .overlay h2 { margin: 0; font-weight: 600; letter-spacing: .05em; }
-  .big { font-size: 56px; font-weight: 600; }
-  .rec { color: var(--block); font-weight: 600; min-height: 22px; }
+  .screen.active {
+    opacity: 1; visibility: visible; transform: none;
+    transition: opacity .28s ease, transform .28s ease, visibility 0s;
+  }
+  .back {
+    position: absolute; top: calc(env(safe-area-inset-top) + 6px); left: 6px;
+    width: 48px; height: 48px; background: none; border: 0; color: var(--ink); opacity: .4;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .back:active { opacity: .8; }
+  .back svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+
+  /* ---------- botones ---------- */
   .btn {
-    padding: 14px 32px; font-size: 17px; border: 0; border-radius: 12px;
-    background: var(--block); color: #fff; font-weight: 600; min-width: 230px;
+    display: block; width: min(78vw, 300px); padding: 16px 24px; font-size: 17px; font-weight: 600;
+    border: 0; border-radius: 16px; background: var(--block); color: #fff; letter-spacing: .02em;
+    box-shadow: 0 6px 16px -6px rgba(0,0,0,.25);
+    transition: transform .12s ease, background .9s ease;
   }
-  .btn.sec { background: transparent; color: var(--ink); font-weight: 500; opacity: .7; padding: 10px; min-width: 0; font-size: 15px; }
+  .btn:active { transform: scale(.97); }
+  .btn.sec { background: #fff; color: var(--ink); font-weight: 500; box-shadow: 0 1px 0 rgba(0,0,0,.05), inset 0 0 0 1px rgba(0,0,0,.07); }
+  .btn.ghost { background: transparent; color: var(--ink); opacity: .6; font-weight: 500; box-shadow: none; padding: 12px; }
+
+  /* ---------- inicio ---------- */
+  #home { gap: 14px; }
+  .logo { display: grid; grid-template-columns: repeat(2, 30px); gap: 6px; margin-bottom: 14px; }
+  .logo i { width: 30px; height: 30px; border-radius: 8px; background: var(--block);
+    box-shadow: inset 0 -3px 0 rgba(0,0,0,.14), inset 0 2px 0 rgba(255,255,255,.28); }
+  .logo i.e { background: var(--cell); box-shadow: none; }
+  .title { margin: 0; font-size: 32px; font-weight: 300; letter-spacing: .38em; padding-left: .38em; }
+  .tag { margin: 0 0 30px; font-size: 13px; letter-spacing: .1em; opacity: .45; }
+  #home .btn + .btn { margin-top: 2px; }
+
+  /* ---------- juego ---------- */
+  #game { gap: 26px; }
+  #scores { display: flex; gap: 48px; text-align: center; }
+  #scores div { display: flex; flex-direction: column; gap: 2px; }
+  #scores span { font-size: 11px; letter-spacing: .16em; opacity: .45; font-weight: 500; }
+  #scores b { font-size: 34px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.1; }
+  #boardWrap { position: relative; width: min(92vw, 380px); width: min(92vw, 380px, 50dvh); }
+  #board {
+    display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; width: 100%; aspect-ratio: 1;
+    padding: 0; border-radius: 6px;
+  }
+  .cell { background: var(--cell); border-radius: 6px; transition: transform .2s ease, background .3s ease; }
+  .cell.on, .piece .b {
+    background: var(--block);
+    box-shadow: inset 0 -3px 0 rgba(0,0,0,.14), inset 0 2px 0 rgba(255,255,255,.28);
+  }
+  .cell.on { transition: transform .2s ease, background .9s ease; }
+  .piece .b { transition: background .9s ease; }
+  .cell.preview { background: var(--ok); box-shadow: none; }
+  .cell.clearing { background: #fff; transform: scale(.5); box-shadow: none; }
+  .cell.pop { animation: pop .26s ease-out; }
+  @keyframes pop { 0% { transform: scale(.72); } 60% { transform: scale(1.08); } 100% { transform: scale(1); } }
+
+  #tray { display: flex; justify-content: space-around; align-items: center; width: min(92vw, 380px); width: min(92vw, 380px, 50dvh); height: 110px; }
+  .slot { width: 32%; height: 100%; display: flex; align-items: center; justify-content: center; touch-action: none; }
+  .slot.used { visibility: hidden; }
+  .slot.dragging { opacity: .2; }
+  .piece { display: grid; }
+  .piece .b { border-radius: 5px; }
+  .piece .e { background: transparent; }
+  .dragpiece { position: fixed; pointer-events: none; z-index: 30; filter: drop-shadow(0 10px 10px rgba(0,0,0,.2)); }
+  .dragpiece .b { border-radius: 6px; }
+
+  .float {
+    position: absolute; left: 50%; top: 42%; font-size: 38px; font-weight: 700; color: var(--block);
+    text-shadow: 0 2px 10px rgba(255,255,255,.9); pointer-events: none; z-index: 5;
+    animation: floatUp .95s ease-out forwards;
+  }
+  @keyframes floatUp {
+    0% { opacity: 0; transform: translate(-50%, 12px) scale(.8); }
+    20% { opacity: 1; transform: translate(-50%, 0) scale(1.1); }
+    100% { opacity: 0; transform: translate(-50%, -46px) scale(1); }
+  }
+
+  /* fin de partida */
+  #over {
+    position: absolute; inset: 0; z-index: 40; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+    background: rgba(244,241,234,.9); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+    padding: 20px; text-align: center;
+    opacity: 0; visibility: hidden; transition: opacity .3s ease, visibility 0s .3s;
+  }
+  #over.show { opacity: 1; visibility: visible; transition: opacity .3s ease, visibility 0s; }
+  #over h2 { margin: 0; font-size: 15px; font-weight: 500; letter-spacing: .22em; opacity: .55; }
+  #finalScore { font-size: 76px; font-weight: 600; line-height: 1.05; font-variant-numeric: tabular-nums; }
+  .msg { min-height: 24px; font-weight: 600; color: var(--block); transition: color .9s ease; }
+  #over .btn { margin-top: 8px; }
+  #over .btn.ghost { margin-top: 0; }
+  #over .sp { height: 14px; }
+
+  /* ---------- introducir código ---------- */
+  #join { gap: 12px; }
+  #join h2 { margin: 0 0 4px; font-size: 22px; font-weight: 500; letter-spacing: .06em; }
+  .hint { font-size: 14px; opacity: .5; margin-bottom: 10px; text-align: center; }
   #codeInput {
-    font-size: 24px; text-align: center; letter-spacing: .12em; text-transform: uppercase;
-    padding: 12px; width: min(80vw, 280px); border: 2px solid var(--cell); border-radius: 12px;
-    background: #fff; color: var(--ink); user-select: text; -webkit-user-select: text;
+    font-size: 26px; text-align: center; letter-spacing: .14em; text-transform: uppercase; font-family: inherit;
+    padding: 14px; width: min(78vw, 300px); border: 0; border-radius: 16px; background: #fff; color: var(--ink);
+    box-shadow: inset 0 0 0 1.5px rgba(0,0,0,.08); outline: none;
+    user-select: text; -webkit-user-select: text;
   }
-  #joinErr { color: #b3503f; min-height: 20px; font-size: 14px; }
+  #codeInput:focus { box-shadow: inset 0 0 0 2px var(--block); }
+  #joinErr { min-height: 20px; color: #b3503f; font-size: 14px; text-align: center; }
+
+  /* ---------- récords ---------- */
+  #records { justify-content: flex-start; padding-top: calc(env(safe-area-inset-top) + 62px); }
+  #records h2 { position: absolute; top: calc(env(safe-area-inset-top) + 17px); margin: 0; font-size: 18px; font-weight: 500; letter-spacing: .08em; }
+  .wrap { width: min(92vw, 420px); display: flex; flex-direction: column; flex: 1; min-height: 0; }
+  .tabs { display: flex; background: rgba(0,0,0,.05); border-radius: 12px; padding: 3px; margin-bottom: 18px; }
+  .tabs button { flex: 1; border: 0; background: transparent; padding: 9px; border-radius: 10px; font-size: 14px; font-weight: 500; color: var(--ink); opacity: .55; }
+  .tabs button.on { background: #fff; opacity: 1; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+  .pane { display: none; flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  .pane.on { display: block; }
+  .stats { display: flex; gap: 10px; margin-bottom: 24px; }
+  .stats div { flex: 1; background: #fff; border-radius: 16px; padding: 16px 8px; text-align: center; box-shadow: inset 0 0 0 1px rgba(0,0,0,.05); }
+  .stats b { display: block; font-size: 28px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .stats span { font-size: 10px; letter-spacing: .14em; opacity: .45; }
+  .pane h3 { margin: 0 0 6px; font-size: 12px; letter-spacing: .16em; font-weight: 500; opacity: .45; }
+  .row { display: flex; justify-content: space-between; align-items: center; padding: 13px 2px; border-bottom: 1px solid rgba(0,0,0,.07); }
+  .rc { display: flex; flex-direction: column; gap: 2px; }
+  .rc b { font-size: 17px; letter-spacing: .12em; font-weight: 600; }
+  .rc span { font-size: 12px; opacity: .45; }
+  .rs { display: flex; align-items: center; gap: 12px; }
+  .rs b { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .tagw { font-size: 11px; font-weight: 600; letter-spacing: .06em; padding: 3px 8px; border-radius: 8px; }
+  .tagw.w { background: #dcebdf; color: #3d7a50; }
+  .tagw.l { background: #eee; color: #888; }
+  .tagw.t { background: #efe7d2; color: #8a7236; }
+  .empty { text-align: center; opacity: .45; padding: 36px 0; font-size: 15px; margin: 0; }
+  #btnReset { align-self: center; margin-top: 8px; width: auto; font-size: 13px; opacity: .4; }
 </style>
 </head>
 <body>
-  <h1>Bloques</h1>
-  <div id="scores">
-    <div><span>PUNTOS</span><b id="score">0</b></div>
-    <div><span>RÉCORD</span><b id="best">0</b></div>
-  </div>
-  <div id="info"></div>
-  <div id="board"></div>
-  <div id="tray"></div>
-  <div id="bar">
-    <button class="link" id="btnNew">Nueva partida</button>
-    <button class="link" id="btnJoin">Introducir código</button>
+
+  <!-- INICIO -->
+  <div class="screen active" id="home">
+    <div class="logo"><i></i><i></i><i></i><i class="e"></i></div>
+    <h1 class="title">BLOQUES</h1>
+    <p class="tag">un puzzle para el tren</p>
+    <button class="btn" id="btnPlay">Nueva partida</button>
+    <button class="btn sec" id="btnJoin">Introducir código</button>
+    <button class="btn sec" id="btnRecords">Récords</button>
   </div>
 
-  <!-- Fin de partida -->
-  <div class="overlay" id="over">
-    <h2>Fin de partida</h2>
-    <div class="big" id="finalScore">0</div>
-    <div class="rec" id="recMsg"></div>
-    <div class="rec" id="vsMsg"></div>
-    <button class="btn" id="btnShare">Compartir reto</button>
-    <button class="btn sec" id="btnAgain">Jugar otra vez (código nuevo)</button>
-    <button class="btn sec" id="btnRepeat">Repetir este código</button>
-    <button class="btn sec" id="btnJoin2">Introducir código</button>
+  <!-- JUEGO -->
+  <div class="screen" id="game">
+    <button class="back" id="gameBack" aria-label="Menú"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+    <div id="scores">
+      <div><span>PUNTOS</span><b id="score">0</b></div>
+      <div><span>RÉCORD</span><b id="best">0</b></div>
+    </div>
+    <div id="boardWrap"><div id="board"></div></div>
+    <div id="tray"></div>
+
+    <div id="over">
+      <h2>FIN DE PARTIDA</h2>
+      <div id="finalScore">0</div>
+      <div class="msg" id="recMsg"></div>
+      <div class="msg" id="vsMsg"></div>
+      <div class="sp"></div>
+      <button class="btn" id="btnShare">Compartir reto</button>
+      <button class="btn sec" id="btnAgain">Nueva partida</button>
+      <button class="btn ghost" id="btnRepeat">Repetir este código</button>
+      <button class="btn ghost" id="btnMenu">Menú</button>
+    </div>
   </div>
 
-  <!-- Introducir código -->
-  <div class="overlay" id="join">
+  <!-- INTRODUCIR CÓDIGO -->
+  <div class="screen" id="join">
+    <button class="back" data-go="home" aria-label="Volver"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
     <h2>Introducir código</h2>
-    <div style="opacity:.6;font-size:14px">Ejemplo: K7X2 o K7X2-340</div>
-    <input id="codeInput" type="text" autocapitalize="characters" autocomplete="off" autocorrect="off" spellcheck="false" maxlength="200" placeholder="CÓDIGO">
+    <div class="hint">Ejemplo: K7X2 o K7X2-340<br>También puedes pegar el mensaje del reto</div>
+    <input id="codeInput" type="text" autocapitalize="characters" autocomplete="off" autocorrect="off" spellcheck="false" maxlength="300" placeholder="CÓDIGO">
     <div id="joinErr"></div>
     <button class="btn" id="btnGo">Jugar</button>
-    <button class="btn sec" id="btnCancel">Cancelar</button>
+  </div>
+
+  <!-- RÉCORDS -->
+  <div class="screen" id="records">
+    <button class="back" data-go="home" aria-label="Volver"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+    <h2>Récords</h2>
+    <div class="wrap">
+      <div class="tabs">
+        <button class="on" data-tab="pers">Personales</button>
+        <button data-tab="games">Partidas</button>
+      </div>
+      <div class="pane on" id="paneP"></div>
+      <div class="pane" id="paneG"></div>
+      <button class="btn ghost" id="btnReset">Borrar récords</button>
+    </div>
   </div>
 
 <script>
-const SIZE = 8, GAP = 4, TRAY_CELL = 20, LIFT = 50;
+const SIZE = 8, GAP = 4, TRAY_CELL = 20, LIFT = 50, LEVEL_POINTS = 500;
 
 const SHAPES = [
   [[1]],
@@ -115,6 +236,27 @@ const SHAPES = [
   [[1,1],[1,0]], [[1,1],[0,1]], [[1,0],[1,1]], [[0,1],[1,1]],
   [[1,1,1],[0,1,0]]
 ];
+
+// Paleta: cambia cada 500 puntos (b = bloque, p = vista previa)
+const PALETTE = [
+  { b: '#6b8f9c', p: '#b4cbd2' }, //    0 azul pizarra
+  { b: '#7fa88a', p: '#bcd4c2' }, //  500 verde salvia
+  { b: '#d98b7a', p: '#efc4ba' }, // 1000 coral
+  { b: '#d3a65a', p: '#ebd3a6' }, // 1500 ocre
+  { b: '#9a8ac4', p: '#cfc6e4' }, // 2000 lavanda
+  { b: '#cc7f9c', p: '#e8bccb' }, // 2500 rosa
+  { b: '#3f8f8a', p: '#a5cfcc' }, // 3000 verde azulado
+  { b: '#5b7fc7', p: '#b0c4e8' }  // 3500 azul cobalto
+];
+let paletteIdx = -1;
+function setPalette(level) {
+  const idx = level % PALETTE.length;
+  if (idx === paletteIdx) return;
+  paletteIdx = idx;
+  const root = document.documentElement.style;
+  root.setProperty('--block', PALETTE[idx].b);
+  root.setProperty('--ok', PALETTE[idx].p);
+}
 
 // ---------- código de partida -> piezas idénticas ----------
 const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -141,7 +283,6 @@ function mulberry32(a) {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
-// Acepta "K7X2", "K7X2-340" o un mensaje entero de reto pegado
 function parseCode(text) {
   const t = text.trim().toUpperCase();
   let m = t.match(/^([A-Z0-9]{4})(?:\s*-\s*(\d{1,6}))?$/);
@@ -149,27 +290,38 @@ function parseCode(text) {
   if (!m) return null;
   return { code: m[1], target: m[2] ? parseInt(m[2], 10) : null };
 }
-
 let rand = Math.random;
 
-const boardEl = document.getElementById('board');
-const trayEl = document.getElementById('tray');
-const scoreEl = document.getElementById('score');
-const bestEl = document.getElementById('best');
-const infoEl = document.getElementById('info');
-const overEl = document.getElementById('over');
-const joinEl = document.getElementById('join');
+// ---------- datos guardados en el móvil ----------
+function loadData() {
+  try {
+    const raw = localStorage.getItem('bloques_v2');
+    if (raw) {
+      const d = JSON.parse(raw);
+      if (d && typeof d.best === 'number' && Array.isArray(d.games))
+        return { best: d.best, played: d.played || 0, total: d.total || 0, games: d.games };
+    }
+  } catch (e) {}
+  let old = 0;
+  try { old = parseInt(localStorage.getItem('bloques_best') || '0', 10) || 0; } catch (e) {}
+  return { best: old, played: 0, total: 0, games: [] };
+}
+function saveData() {
+  try { localStorage.setItem('bloques_v2', JSON.stringify(data)); } catch (e) {}
+}
+let data = loadData();
 
-let grid, pieces, score, best, locked, over, currentCode, targetScore;
+// ---------- referencias ----------
+const $ = id => document.getElementById(id);
+const boardEl = $('board'), trayEl = $('tray'), scoreEl = $('score'), bestEl = $('best'), overEl = $('over');
+
+let grid, pieces, score, best, locked, over, currentCode, targetScore, shown = 0, raf = 0;
 const cells = [];
 
-// ---------- récord (se guarda en el móvil) ----------
-function loadBest() {
-  try { return parseInt(localStorage.getItem('bloques_best') || '0', 10) || 0; }
-  catch (e) { return 0; }
-}
-function saveBest(v) {
-  try { localStorage.setItem('bloques_best', String(v)); } catch (e) {}
+// ---------- pantallas ----------
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.toggle('active', s.id === id));
+  if (id === 'home') setPalette(0);
 }
 
 // ---------- tablero ----------
@@ -188,10 +340,22 @@ function drawBoard() {
 function cellSize() {
   return (boardEl.getBoundingClientRect().width - GAP * (SIZE - 1)) / SIZE;
 }
+function animateScore() {
+  cancelAnimationFrame(raf);
+  const from = shown, to = score;
+  if (to <= from) { shown = to; scoreEl.textContent = to; return; }
+  const t0 = performance.now(), dur = Math.min(500, Math.max(160, (to - from) * 8));
+  (function step(t) {
+    const k = Math.min(1, (t - t0) / dur);
+    shown = Math.round(from + (to - from) * k);
+    scoreEl.textContent = shown;
+    if (k < 1) raf = requestAnimationFrame(step);
+  })(t0);
+}
 function updateScore() {
-  scoreEl.textContent = score;
   bestEl.textContent = best;
-  infoEl.textContent = 'Código ' + currentCode + (targetScore != null ? '  ·  Objetivo ' + targetScore : '');
+  animateScore();
+  setPalette(Math.floor(score / LEVEL_POINTS));
 }
 
 // ---------- piezas ----------
@@ -263,16 +427,32 @@ function anyMoveLeft() {
 // ---------- flujo de una jugada ----------
 function afterMove() {
   if (pieces.every(p => p === null)) dealPieces(); else drawTray();
-  if (score > best) { best = score; saveBest(best); }
+  if (score > best) { best = score; data.best = best; saveData(); }
   updateScore();
   drawBoard();
   if (!anyMoveLeft()) endGame();
+}
+
+function floatText(txt) {
+  const f = document.createElement('div');
+  f.className = 'float';
+  f.textContent = txt;
+  $('boardWrap').appendChild(f);
+  setTimeout(() => f.remove(), 1000);
 }
 
 function finishPlacement(shape, row, col, idx) {
   score += place(shape, row, col);
   pieces[idx] = null;
   drawBoard();
+
+  // pequeña animación al colocar
+  shape.forEach((rw, r) => rw.forEach((v, c) => {
+    if (!v) return;
+    const el = cells[(row + r) * SIZE + (col + c)];
+    el.classList.add('pop');
+    setTimeout(() => el.classList.remove('pop'), 300);
+  }));
 
   const { rows, cols } = findFull();
   const lines = rows.length + cols.length;
@@ -286,25 +466,33 @@ function finishPlacement(shape, row, col, idx) {
 
   setTimeout(() => {
     toClear.forEach(i => { grid[Math.floor(i / SIZE)][i % SIZE] = 0; });
-    score += 10 * lines * lines;
+    const bonus = 10 * lines * lines;
+    score += bonus;
+    floatText('+' + bonus);
     locked = false;
     afterMove();
-  }, 200);
+  }, 220);
 }
 
 function endGame() {
   over = true;
-  document.getElementById('finalScore').textContent = score;
-  document.getElementById('recMsg').textContent =
-    (score > 0 && score >= best) ? '¡Nuevo récord!' : '';
+  let w = null;
   let vs = '';
   if (targetScore != null) {
-    if (score > targetScore) vs = '¡Ganaste! Superas el objetivo por ' + (score - targetScore);
-    else if (score === targetScore) vs = 'Empate con el objetivo';
-    else vs = 'Te han faltado ' + (targetScore - score) + ' puntos para ganar';
+    if (score > targetScore) { w = 1; vs = '¡Ganaste! Superas el objetivo por ' + (score - targetScore); }
+    else if (score === targetScore) { w = 2; vs = 'Empate con el objetivo'; }
+    else { w = 0; vs = 'Te han faltado ' + (targetScore - score) + ' puntos para ganar'; }
   }
-  document.getElementById('vsMsg').textContent = vs;
-  overEl.classList.add('show');
+  data.played++;
+  data.total += score;
+  data.games.push({ c: currentCode, s: score, d: Date.now(), w });
+  if (data.games.length > 100) data.games = data.games.slice(-100);
+  saveData();
+
+  $('finalScore').textContent = score;
+  $('recMsg').textContent = (score > 0 && score >= best) ? '¡Nuevo récord!' : '';
+  $('vsMsg').textContent = vs;
+  setTimeout(() => overEl.classList.add('show'), 350);
 }
 
 // ---------- nueva partida ----------
@@ -314,12 +502,14 @@ function newGame(code, target) {
   rand = mulberry32(hashStr(currentCode));
   grid = Array.from({ length: SIZE }, () => Array(SIZE).fill(0));
   score = 0; locked = false; over = false;
-  best = loadBest();
+  best = data.best;
+  cancelAnimationFrame(raf); shown = 0; scoreEl.textContent = 0;
   overEl.classList.remove('show');
-  joinEl.classList.remove('show');
-  updateScore();
+  setPalette(0);
+  bestEl.textContent = best;
   drawBoard();
   dealPieces();
+  showScreen('game');
 }
 
 // ---------- compartir reto ----------
@@ -342,30 +532,71 @@ async function shareChallenge() {
 
 // ---------- introducir código ----------
 function openJoin() {
-  document.getElementById('codeInput').value = '';
-  document.getElementById('joinErr').textContent = '';
-  joinEl.classList.add('show');
+  $('codeInput').value = '';
+  $('joinErr').textContent = '';
+  showScreen('join');
 }
 function submitJoin() {
-  const parsed = parseCode(document.getElementById('codeInput').value);
+  const parsed = parseCode($('codeInput').value);
   if (!parsed) {
-    document.getElementById('joinErr').textContent = 'Código no válido. Ejemplo: K7X2 o K7X2-340';
+    $('joinErr').textContent = 'Código no válido. Ejemplo: K7X2 o K7X2-340';
     return;
   }
   newGame(parsed.code, parsed.target);
 }
 
-document.getElementById('btnNew').addEventListener('click', () => {
-  if (!over && score > 0 && !confirm('¿Abandonar la partida actual?')) return;
-  newGame();
+// ---------- récords ----------
+function fmtDate(ms) {
+  return new Date(ms).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+}
+function rowHTML(g) {
+  const tag = g.w === 1 ? '<span class="tagw w">GANADA</span>'
+            : g.w === 0 ? '<span class="tagw l">PERDIDA</span>'
+            : g.w === 2 ? '<span class="tagw t">EMPATE</span>' : '';
+  return '<div class="row"><div class="rc"><b>' + g.c + '</b><span>' + fmtDate(g.d) +
+         '</span></div><div class="rs">' + tag + '<b>' + g.s + '</b></div></div>';
+}
+function renderRecords() {
+  const avg = data.played ? Math.round(data.total / data.played) : 0;
+  const top = data.games.slice().sort((a, b) => b.s - a.s).slice(0, 5);
+  $('paneP').innerHTML =
+    '<div class="stats"><div><b>' + data.best + '</b><span>RÉCORD</span></div>' +
+    '<div><b>' + data.played + '</b><span>PARTIDAS</span></div>' +
+    '<div><b>' + avg + '</b><span>MEDIA</span></div></div>' +
+    '<h3>MEJORES PARTIDAS</h3>' +
+    (top.length ? top.map(rowHTML).join('') : '<p class="empty">Aún no hay partidas</p>');
+  const recent = data.games.slice().reverse().slice(0, 30);
+  $('paneG').innerHTML =
+    '<h3>ÚLTIMAS PARTIDAS</h3>' +
+    (recent.length ? recent.map(rowHTML).join('') : '<p class="empty">Aún no hay partidas</p>');
+}
+document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('.tabs button').forEach(x => x.classList.toggle('on', x === b));
+  $('paneP').classList.toggle('on', b.dataset.tab === 'pers');
+  $('paneG').classList.toggle('on', b.dataset.tab === 'games');
+}));
+
+// ---------- botones ----------
+$('btnPlay').addEventListener('click', () => newGame());
+$('btnJoin').addEventListener('click', openJoin);
+$('btnRecords').addEventListener('click', () => { renderRecords(); showScreen('records'); });
+$('btnGo').addEventListener('click', submitJoin);
+$('codeInput').addEventListener('keydown', e => { if (e.key === 'Enter') submitJoin(); });
+document.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', () => showScreen(b.dataset.go)));
+$('gameBack').addEventListener('click', () => {
+  if (!over && score > 0 && !confirm('¿Salir al menú? Perderás la partida actual.')) return;
+  showScreen('home');
 });
-document.getElementById('btnJoin').addEventListener('click', openJoin);
-document.getElementById('btnJoin2').addEventListener('click', openJoin);
-document.getElementById('btnAgain').addEventListener('click', () => newGame());
-document.getElementById('btnRepeat').addEventListener('click', () => newGame(currentCode, targetScore));
-document.getElementById('btnShare').addEventListener('click', shareChallenge);
-document.getElementById('btnGo').addEventListener('click', submitJoin);
-document.getElementById('btnCancel').addEventListener('click', () => joinEl.classList.remove('show'));
+$('btnShare').addEventListener('click', shareChallenge);
+$('btnAgain').addEventListener('click', () => newGame());
+$('btnRepeat').addEventListener('click', () => newGame(currentCode, targetScore));
+$('btnMenu').addEventListener('click', () => showScreen('home'));
+$('btnReset').addEventListener('click', () => {
+  if (!confirm('¿Borrar todos tus récords y el historial de partidas?')) return;
+  data = { best: 0, played: 0, total: 0, games: [] };
+  saveData();
+  renderRecords();
+});
 
 // ---------- arrastrar y soltar ----------
 function startDrag(e, idx, slot) {
@@ -377,7 +608,7 @@ function startDrag(e, idx, slot) {
   const h = shape.length * step - GAP;
 
   const ghost = makePiece(shape, cs);
-  ghost.classList.add('ghost');
+  ghost.classList.add('dragpiece');
   document.body.appendChild(ghost);
   slot.classList.add('dragging');
 
@@ -420,7 +651,11 @@ function startDrag(e, idx, slot) {
   move(e);
 }
 
-newGame();
+// Inicio: se prepara una partida de fondo para que el tablero exista, pero se muestra el menú
+grid = Array.from({ length: SIZE }, () => Array(SIZE).fill(0));
+pieces = [null, null, null]; score = 0; best = data.best; locked = false; over = true;
+setPalette(0);
+showScreen('home');
 </script>
 </body>
 </html>
