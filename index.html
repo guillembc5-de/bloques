@@ -7,18 +7,39 @@
 <meta name="apple-mobile-web-app-title" content="Bloques">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="theme-color" content="#f4f1ea">
+<meta name="color-scheme" content="light dark">
 <link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="apple-touch-icon.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <title>Bloques</title>
 <style>
   :root {
     --bg:#f4f1ea; --cell:#e6e2d8; --ink:#2b2b2b;
+    --card:#fff; --line:rgba(0,0,0,.07); --line2:rgba(0,0,0,.05); --track:rgba(0,0,0,.05);
+    --flash:#fff; --overlay:rgba(244,241,234,.9); --glow:rgba(255,255,255,.9); --err:#b3503f;
+    --w-bg:#dcebdf; --w-fg:#3d7a50; --l-bg:#eee; --l-fg:#888; --t-bg:#efe7d2; --t-fg:#8a7236;
     --block:#6b8f9c; --ok:#b4cbd2;
   }
+  /* Modo oscuro automático (según el sistema), salvo que se haya elegido claro a mano */
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg:#1a1b1e; --cell:#292b30; --ink:#ecebe6;
+      --card:#25272c; --line:rgba(255,255,255,.09); --line2:rgba(255,255,255,.07); --track:rgba(255,255,255,.07);
+      --flash:#d9d8d2; --overlay:rgba(26,27,30,.9); --glow:rgba(0,0,0,.55); --err:#e07b67;
+      --w-bg:#24382c; --w-fg:#7cc392; --l-bg:#2d2f34; --l-fg:#8d8f96; --t-bg:#3a3524; --t-fg:#d4b96a;
+    }
+  }
+  /* Modo oscuro elegido a mano */
+  :root[data-theme="dark"] {
+    --bg:#1a1b1e; --cell:#292b30; --ink:#ecebe6;
+    --card:#25272c; --line:rgba(255,255,255,.09); --line2:rgba(255,255,255,.07); --track:rgba(255,255,255,.07);
+    --flash:#d9d8d2; --overlay:rgba(26,27,30,.9); --glow:rgba(0,0,0,.55); --err:#e07b67;
+    --w-bg:#24382c; --w-fg:#7cc392; --l-bg:#2d2f34; --l-fg:#8d8f96; --t-bg:#3a3524; --t-fg:#d4b96a;
+  }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  html, body { height: 100%; margin: 0; overflow: hidden; overscroll-behavior: none; }
+  html, body { height: 100%; margin: 0; overflow: hidden; overscroll-behavior: none; background: var(--bg); }
   body {
-    background: var(--bg); color: var(--ink);
+    color: var(--ink);
     font-family: -apple-system, "SF Pro Text", system-ui, sans-serif;
     user-select: none; -webkit-user-select: none; touch-action: manipulation;
   }
@@ -28,20 +49,25 @@
   .screen {
     position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
     padding: calc(env(safe-area-inset-top) + 16px) 16px calc(env(safe-area-inset-bottom) + 20px);
-    opacity: 0; visibility: hidden; transform: translateY(10px);
+    opacity: 0; visibility: hidden; transform: translateY(10px); pointer-events: none;
     transition: opacity .28s ease, transform .28s ease, visibility 0s .28s;
   }
   .screen.active {
-    opacity: 1; visibility: visible; transform: none;
+    opacity: 1; visibility: visible; transform: none; pointer-events: auto;
     transition: opacity .28s ease, transform .28s ease, visibility 0s;
   }
-  .back {
-    position: absolute; top: calc(env(safe-area-inset-top) + 6px); left: 6px;
+  .back, .iconbtn {
+    position: absolute; top: calc(env(safe-area-inset-top) + 6px);
     width: 48px; height: 48px; background: none; border: 0; color: var(--ink); opacity: .4;
     display: flex; align-items: center; justify-content: center;
   }
-  .back:active { opacity: .8; }
-  .back svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+  .back { left: 6px; }
+  .iconbtn { right: 6px; }
+  .back:active, .iconbtn:active { opacity: .8; }
+  .back svg, .iconbtn svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .iconbtn .sun { display: none; }
+  .iconbtn.dark .sun { display: block; }
+  .iconbtn.dark .moon { display: none; }
 
   /* ---------- botones ---------- */
   .btn {
@@ -51,8 +77,19 @@
     transition: transform .12s ease, background .9s ease;
   }
   .btn:active { transform: scale(.97); }
-  .btn.sec { background: #fff; color: var(--ink); font-weight: 500; box-shadow: 0 1px 0 rgba(0,0,0,.05), inset 0 0 0 1px rgba(0,0,0,.07); }
+  .btn.sec { background: var(--card); color: var(--ink); font-weight: 500; box-shadow: 0 1px 0 var(--line2), inset 0 0 0 1px var(--line); }
   .btn.ghost { background: transparent; color: var(--ink); opacity: .6; font-weight: 500; box-shadow: none; padding: 12px; }
+
+  /* ---------- selector segmentado (dificultad y pestañas) ---------- */
+  .tabs, .seg { display: flex; background: var(--track); border-radius: 12px; padding: 3px; }
+  .tabs { margin-bottom: 18px; }
+  .seg { width: min(78vw, 300px); border-radius: 14px; margin-bottom: 8px; }
+  .tabs button, .seg button {
+    flex: 1; border: 0; background: transparent; padding: 9px; border-radius: 10px;
+    font-size: 14px; font-weight: 500; color: var(--ink); opacity: .55;
+  }
+  .seg button { padding: 10px 0; border-radius: 11px; }
+  .tabs button.on, .seg button.on { background: var(--card); opacity: 1; box-shadow: 0 1px 3px rgba(0,0,0,.12); }
 
   /* ---------- inicio ---------- */
   #home { gap: 14px; }
@@ -60,7 +97,7 @@
   .logo i { width: 30px; height: 30px; border-radius: 8px; background: var(--block);
     box-shadow: inset 0 -3px 0 rgba(0,0,0,.14), inset 0 2px 0 rgba(255,255,255,.28); }
   .logo i.e { background: var(--cell); box-shadow: none; }
-  .title { margin: 0 0 34px; font-size: 32px; font-weight: 300; letter-spacing: .38em; padding-left: .38em; }
+  .title { margin: 0 0 24px; font-size: 32px; font-weight: 300; letter-spacing: .38em; padding-left: .38em; }
   #home .btn + .btn { margin-top: 2px; }
 
   /* ---------- juego ---------- */
@@ -82,7 +119,7 @@
   .cell.on { transition: transform .2s ease, background .9s ease; }
   .piece .b { transition: background .9s ease; }
   .cell.preview { background: var(--ok); box-shadow: none; }
-  .cell.clearing { background: #fff; transform: scale(.5); box-shadow: none; }
+  .cell.clearing { background: var(--flash); transform: scale(.5); box-shadow: none; }
   .cell.pop { animation: pop .26s ease-out; }
   @keyframes pop { 0% { transform: scale(.72); } 60% { transform: scale(1.08); } 100% { transform: scale(1); } }
 
@@ -98,7 +135,7 @@
 
   .float {
     position: absolute; left: 50%; top: 42%; font-size: 38px; font-weight: 700; color: var(--block);
-    text-shadow: 0 2px 10px rgba(255,255,255,.9); pointer-events: none; z-index: 5;
+    text-shadow: 0 2px 10px var(--glow); pointer-events: none; z-index: 5;
     animation: floatUp .95s ease-out forwards;
   }
   @keyframes floatUp {
@@ -110,12 +147,13 @@
   /* fin de partida */
   #over {
     position: absolute; inset: 0; z-index: 40; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
-    background: rgba(244,241,234,.9); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+    background: var(--overlay); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
     padding: 20px; text-align: center;
     opacity: 0; visibility: hidden; transition: opacity .3s ease, visibility 0s .3s;
   }
   #over.show { opacity: 1; visibility: visible; transition: opacity .3s ease, visibility 0s; }
   #over h2 { margin: 0; font-size: 15px; font-weight: 500; letter-spacing: .22em; opacity: .55; }
+  #overInfo { font-size: 12px; letter-spacing: .16em; opacity: .4; font-weight: 500; }
   #finalScore { font-size: 76px; font-weight: 600; line-height: 1.05; font-variant-numeric: tabular-nums; }
   .msg { min-height: 24px; font-weight: 600; color: var(--block); transition: color .9s ease; }
   #over .btn { margin-top: 8px; }
@@ -128,37 +166,35 @@
   .hint { font-size: 14px; opacity: .5; margin-bottom: 10px; text-align: center; }
   #codeInput {
     font-size: 26px; text-align: center; letter-spacing: .14em; text-transform: uppercase; font-family: inherit;
-    padding: 14px; width: min(78vw, 300px); border: 0; border-radius: 16px; background: #fff; color: var(--ink);
-    box-shadow: inset 0 0 0 1.5px rgba(0,0,0,.08); outline: none;
+    padding: 14px; width: min(78vw, 300px); border: 0; border-radius: 16px; background: var(--card); color: var(--ink);
+    box-shadow: inset 0 0 0 1.5px var(--line); outline: none;
     user-select: text; -webkit-user-select: text;
   }
   #codeInput:focus { box-shadow: inset 0 0 0 2px var(--block); }
-  #joinErr { min-height: 20px; color: #b3503f; font-size: 14px; text-align: center; }
+  #joinErr { min-height: 20px; color: var(--err); font-size: 14px; text-align: center; }
 
   /* ---------- récords ---------- */
   #records { justify-content: flex-start; padding-top: calc(env(safe-area-inset-top) + 62px); }
   #records h2 { position: absolute; top: calc(env(safe-area-inset-top) + 17px); margin: 0; font-size: 18px; font-weight: 500; letter-spacing: .08em; }
   .wrap { width: min(92vw, 420px); display: flex; flex-direction: column; flex: 1; min-height: 0; }
-  .tabs { display: flex; background: rgba(0,0,0,.05); border-radius: 12px; padding: 3px; margin-bottom: 18px; }
-  .tabs button { flex: 1; border: 0; background: transparent; padding: 9px; border-radius: 10px; font-size: 14px; font-weight: 500; color: var(--ink); opacity: .55; }
-  .tabs button.on { background: #fff; opacity: 1; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
   .pane { display: none; flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
   .pane.on { display: block; }
-  .stats { display: flex; gap: 10px; margin-bottom: 24px; }
-  .stats div { flex: 1; background: #fff; border-radius: 16px; padding: 16px 8px; text-align: center; box-shadow: inset 0 0 0 1px rgba(0,0,0,.05); }
+  .stats { display: flex; gap: 10px; margin-bottom: 10px; }
+  .stats.last { margin-bottom: 24px; }
+  .stats div { flex: 1; background: var(--card); border-radius: 16px; padding: 16px 8px; text-align: center; box-shadow: inset 0 0 0 1px var(--line2); }
   .stats b { display: block; font-size: 28px; font-weight: 600; font-variant-numeric: tabular-nums; }
   .stats span { font-size: 10px; letter-spacing: .14em; opacity: .45; }
   .pane h3 { margin: 0 0 6px; font-size: 12px; letter-spacing: .16em; font-weight: 500; opacity: .45; }
-  .row { display: flex; justify-content: space-between; align-items: center; padding: 13px 2px; border-bottom: 1px solid rgba(0,0,0,.07); }
+  .row { display: flex; justify-content: space-between; align-items: center; padding: 13px 2px; border-bottom: 1px solid var(--line); }
   .rc { display: flex; flex-direction: column; gap: 2px; }
   .rc b { font-size: 17px; letter-spacing: .12em; font-weight: 600; }
   .rc span { font-size: 12px; opacity: .45; }
   .rs { display: flex; align-items: center; gap: 12px; }
   .rs b { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
   .tagw { font-size: 11px; font-weight: 600; letter-spacing: .06em; padding: 3px 8px; border-radius: 8px; }
-  .tagw.w { background: #dcebdf; color: #3d7a50; }
-  .tagw.l { background: #eee; color: #888; }
-  .tagw.t { background: #efe7d2; color: #8a7236; }
+  .tagw.w { background: var(--w-bg); color: var(--w-fg); }
+  .tagw.l { background: var(--l-bg); color: var(--l-fg); }
+  .tagw.t { background: var(--t-bg); color: var(--t-fg); }
   .empty { text-align: center; opacity: .45; padding: 36px 0; font-size: 15px; margin: 0; }
   #btnReset { align-self: center; margin-top: 8px; width: auto; font-size: 13px; opacity: .4; }
 </style>
@@ -167,8 +203,17 @@
 
   <!-- INICIO -->
   <div class="screen active" id="home">
+    <button class="iconbtn" id="btnTheme" aria-label="Cambiar entre modo claro y oscuro">
+      <svg class="moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z"/></svg>
+      <svg class="sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+    </button>
     <div class="logo"><i></i><i></i><i></i><i class="e"></i></div>
     <h1 class="title">BLOQUES</h1>
+    <div class="seg" id="diffSeg">
+      <button data-d="F">Fácil</button>
+      <button data-d="N">Normal</button>
+      <button data-d="D">Difícil</button>
+    </div>
     <button class="btn" id="btnPlay">Nueva partida</button>
     <button class="btn sec" id="btnJoin">Introducir código</button>
     <button class="btn sec" id="btnRecords">Récords</button>
@@ -186,6 +231,7 @@
 
     <div id="over">
       <h2>FIN DE PARTIDA</h2>
+      <div id="overInfo"></div>
       <div id="finalScore">0</div>
       <div class="msg" id="recMsg"></div>
       <div class="msg" id="vsMsg"></div>
@@ -224,18 +270,36 @@
 
 <script>
 const SIZE = 8, GAP = 4, TRAY_CELL = 20, LIFT = 50, LEVEL_POINTS = 500;
+const DIFFS = { F: 'Fácil', N: 'Normal', D: 'Difícil' };
 
 const SHAPES = [
-  [[1]],
-  [[1,1]], [[1],[1]],
-  [[1,1,1]], [[1],[1],[1]],
-  [[1,1,1,1]], [[1],[1],[1],[1]],
-  [[1,1],[1,1]],
-  [[1,1,1],[1,1,1],[1,1,1]],
-  [[1,0],[1,0],[1,1]], [[1,1,1],[1,0,0]], [[1,1],[0,1],[0,1]], [[0,0,1],[1,1,1]],
-  [[1,1],[1,0]], [[1,1],[0,1]], [[1,0],[1,1]], [[0,1],[1,1]],
-  [[1,1,1],[0,1,0]]
+  [[1]],                                   //  0  1x1
+  [[1,1]], [[1],[1]],                      //  1-2  doble
+  [[1,1,1]], [[1],[1],[1]],                //  3-4  triple
+  [[1,1,1,1]], [[1],[1],[1],[1]],          //  5-6  línea de 4
+  [[1,1],[1,1]],                           //  7  cuadrado 2x2
+  [[1,1,1],[1,1,1],[1,1,1]],               //  8  cuadrado 3x3
+  [[1,0],[1,0],[1,1]], [[1,1,1],[1,0,0]], [[1,1],[0,1],[0,1]], [[0,0,1],[1,1,1]],   //  9-12  L grande
+  [[1,1],[1,0]], [[1,1],[0,1]], [[1,0],[1,1]], [[0,1],[1,1]],                       // 13-16  esquina pequeña
+  [[1,1,1],[0,1,0]]                        // 17  T
 ];
+
+// Probabilidad de cada pieza según la dificultad: [fácil, normal, difícil]
+const WEIGHT_TABLE = [
+  [3, 1, .4],                                   // 1x1
+  [2.5, 1, .6], [2.5, 1, .6],                   // doble
+  [2, 1, 1], [2, 1, 1],                         // triple
+  [.8, 1, 2], [.8, 1, 2],                       // línea de 4
+  [2.5, 1, 1.2],                                // 2x2
+  [.2, 1, 2.5],                                 // 3x3
+  [.8, 1, 2], [.8, 1, 2], [.8, 1, 2], [.8, 1, 2],       // L grande
+  [2, 1, .8], [2, 1, .8], [2, 1, .8], [2, 1, .8],       // esquina pequeña
+  [.8, 1, 1.8]                                  // T
+];
+const WEIGHTS = { F: { list: [], total: 0 }, N: { list: [], total: 0 }, D: { list: [], total: 0 } };
+['F', 'N', 'D'].forEach((k, j) => {
+  WEIGHT_TABLE.forEach(w => { WEIGHTS[k].list.push(w[j]); WEIGHTS[k].total += w[j]; });
+});
 
 // Paleta: un color nuevo cada 500 puntos, sin repetir ninguno.
 // 40 colores + bronce (20000), plata (20500) y oro (21000): el oro es el máximo y ya no cambia.
@@ -249,28 +313,33 @@ const COLORS = [
   '#aeb4bc', // plata
   '#dcaa28'  // oro
 ];
-function lighten(hex, k) {
-  const c = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16));
-  return '#' + c.map(v => Math.round(v + (255 - v) * k).toString(16).padStart(2, '0')).join('');
+function mixHex(a, b, k) {            // k = cuánto de b se mezcla en a
+  const pa = [1, 3, 5].map(i => parseInt(a.slice(i, i + 2), 16));
+  const pb = [1, 3, 5].map(i => parseInt(b.slice(i, i + 2), 16));
+  return '#' + pa.map((v, i) => Math.round(v + (pb[i] - v) * k).toString(16).padStart(2, '0')).join('');
 }
-const PALETTE = COLORS.map(b => ({ b, p: lighten(b, 0.5) }));
-let paletteIdx = -1;
+let paletteIdx = -1, paletteDark = null;
 function setPalette(level) {
-  const idx = Math.min(level, PALETTE.length - 1);
-  if (idx === paletteIdx) return;
-  paletteIdx = idx;
+  const idx = Math.min(level, COLORS.length - 1);
+  const dark = isDark();
+  if (idx === paletteIdx && dark === paletteDark) return;
+  paletteIdx = idx; paletteDark = dark;
+  const b = COLORS[idx];
   const root = document.documentElement.style;
-  root.setProperty('--block', PALETTE[idx].b);
-  root.setProperty('--ok', PALETTE[idx].p);
+  root.setProperty('--block', b);
+  // vista previa: más clara en modo claro, más apagada en modo oscuro
+  root.setProperty('--ok', dark ? mixHex(b, '#292b30', .45) : mixHex(b, '#ffffff', .5));
 }
 
 // ---------- código de partida -> piezas idénticas ----------
+// El código lleva la dificultad: 4 caracteres = Normal, +F = Fácil, +D = Difícil
 const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-function randomCode() {
+function randomCode(diff) {
   let s = '';
   for (let i = 0; i < 4; i++) s += ALPHABET[Math.floor(Math.random() * ALPHABET.length)];
-  return s;
+  return s + (diff === 'N' ? '' : diff);
 }
+function diffOf(code) { return code.length === 5 ? code[4] : 'N'; }
 function hashStr(s) {
   let h = 1779033703 ^ s.length;
   for (let i = 0; i < s.length; i++) {
@@ -291,42 +360,85 @@ function mulberry32(a) {
 }
 function parseCode(text) {
   const t = text.trim().toUpperCase();
-  let m = t.match(/^([A-Z0-9]{4})(?:\s*-\s*(\d{1,6}))?$/);
-  if (!m) m = t.match(/\b([A-Z0-9]{4})-(\d{1,6})\b/);
+  let m = t.match(/^([A-Z0-9]{4}[FD]?)(?:\s*-\s*(\d{1,6}))?$/);
+  if (!m) m = t.match(/\b([A-Z0-9]{4}[FD]?)-(\d{1,6})\b/);
   if (!m) return null;
   return { code: m[1], target: m[2] ? parseInt(m[2], 10) : null };
 }
 let rand = Math.random;
+// La elección de pieza gasta siempre un único número aleatorio, así que dos móviles
+// con el mismo código reciben exactamente las mismas piezas, jueguen como jueguen.
+function pickShape() {
+  const w = WEIGHTS[gameDiff];
+  let r = rand() * w.total;
+  for (let i = 0; i < w.list.length; i++) {
+    r -= w.list[i];
+    if (r < 0) return SHAPES[i];
+  }
+  return SHAPES[SHAPES.length - 1];
+}
 
 // ---------- datos guardados en el móvil ----------
 function loadData() {
+  const fresh = { bests: { F: 0, N: 0, D: 0 }, played: 0, total: 0, games: [], diff: 'N', theme: null };
   try {
     const raw = localStorage.getItem('bloques_v2');
     if (raw) {
       const d = JSON.parse(raw);
-      if (d && typeof d.best === 'number' && Array.isArray(d.games))
-        return { best: d.best, played: d.played || 0, total: d.total || 0, games: d.games };
+      if (d && Array.isArray(d.games)) {
+        const bests = Object.assign({ F: 0, N: 0, D: 0 }, d.bests || {});
+        if (!d.bests && typeof d.best === 'number') bests.N = d.best;   // récord de versiones anteriores
+        return {
+          bests, played: d.played || 0, total: d.total || 0, games: d.games,
+          diff: ['F', 'N', 'D'].includes(d.diff) ? d.diff : 'N',
+          theme: (d.theme === 'light' || d.theme === 'dark') ? d.theme : null
+        };
+      }
     }
   } catch (e) {}
-  let old = 0;
-  try { old = parseInt(localStorage.getItem('bloques_best') || '0', 10) || 0; } catch (e) {}
-  return { best: old, played: 0, total: 0, games: [] };
+  try {
+    const old = parseInt(localStorage.getItem('bloques_best') || '0', 10) || 0;
+    fresh.bests.N = old;
+  } catch (e) {}
+  return fresh;
 }
 function saveData() {
   try { localStorage.setItem('bloques_v2', JSON.stringify(data)); } catch (e) {}
 }
 let data = loadData();
 
+// ---------- tema claro / oscuro ----------
+const darkQuery = (window.matchMedia ? matchMedia('(prefers-color-scheme: dark)') : null);
+function isDark() {
+  if (data.theme === 'dark') return true;
+  if (data.theme === 'light') return false;
+  return !!(darkQuery && darkQuery.matches);
+}
+function applyTheme() {
+  const root = document.documentElement;
+  if (data.theme) root.setAttribute('data-theme', data.theme); else root.removeAttribute('data-theme');
+  const dark = isDark();
+  document.querySelector('meta[name="theme-color"]').setAttribute('content', dark ? '#1a1b1e' : '#f4f1ea');
+  document.getElementById('btnTheme').classList.toggle('dark', dark);
+  setPalette(paletteIdx < 0 ? 0 : paletteIdx);
+}
+if (darkQuery) {
+  const onChange = () => { if (!data.theme) applyTheme(); };
+  if (darkQuery.addEventListener) darkQuery.addEventListener('change', onChange);
+  else if (darkQuery.addListener) darkQuery.addListener(onChange);
+}
+
 // ---------- referencias ----------
 const $ = id => document.getElementById(id);
 const boardEl = $('board'), trayEl = $('tray'), scoreEl = $('score'), bestEl = $('best'), overEl = $('over');
 
-let grid, pieces, score, best, locked, over, currentCode, targetScore, shown = 0, raf = 0;
+let grid, pieces, score, best, locked, over, currentCode, targetScore, gameDiff = 'N', newRecord = false, shown = 0, raf = 0;
 const cells = [];
 
 // ---------- pantallas ----------
 function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.toggle('active', s.id === id));
+  if (id !== 'game') overEl.classList.remove('show');
   if (id === 'home') setPalette(0);
 }
 
@@ -379,7 +491,7 @@ function makePiece(shape, size) {
   return el;
 }
 function dealPieces() {
-  pieces = [0, 1, 2].map(() => SHAPES[Math.floor(rand() * SHAPES.length)]);
+  pieces = [0, 1, 2].map(() => pickShape());
   drawTray();
 }
 function drawTray() {
@@ -433,7 +545,7 @@ function anyMoveLeft() {
 // ---------- flujo de una jugada ----------
 function afterMove() {
   if (pieces.every(p => p === null)) dealPieces(); else drawTray();
-  if (score > best) { best = score; data.best = best; saveData(); }
+  if (score > best) { best = score; newRecord = true; data.bests[gameDiff] = best; saveData(); }
   updateScore();
   drawBoard();
   if (!anyMoveLeft()) endGame();
@@ -495,20 +607,22 @@ function endGame() {
   if (data.games.length > 100) data.games = data.games.slice(-100);
   saveData();
 
+  $('overInfo').textContent = DIFFS[gameDiff].toUpperCase() + '  ·  ' + currentCode;
   $('finalScore').textContent = score;
-  $('recMsg').textContent = (score > 0 && score >= best) ? '¡Nuevo récord!' : '';
+  $('recMsg').textContent = newRecord ? '¡Nuevo récord!' : '';
   $('vsMsg').textContent = vs;
   setTimeout(() => overEl.classList.add('show'), 350);
 }
 
 // ---------- nueva partida ----------
 function newGame(code, target) {
-  currentCode = code || randomCode();
+  currentCode = code || randomCode(data.diff);
+  gameDiff = diffOf(currentCode);
   targetScore = (target === undefined) ? null : target;
   rand = mulberry32(hashStr(currentCode));
   grid = Array.from({ length: SIZE }, () => Array(SIZE).fill(0));
-  score = 0; locked = false; over = false;
-  best = data.best;
+  score = 0; locked = false; over = false; newRecord = false;
+  best = data.bests[gameDiff];
   cancelAnimationFrame(raf); shown = 0; scoreEl.textContent = 0;
   overEl.classList.remove('show');
   setPalette(0);
@@ -559,16 +673,20 @@ function rowHTML(g) {
   const tag = g.w === 1 ? '<span class="tagw w">GANADA</span>'
             : g.w === 0 ? '<span class="tagw l">PERDIDA</span>'
             : g.w === 2 ? '<span class="tagw t">EMPATE</span>' : '';
-  return '<div class="row"><div class="rc"><b>' + g.c + '</b><span>' + fmtDate(g.d) +
+  return '<div class="row"><div class="rc"><b>' + g.c + '</b><span>' + fmtDate(g.d) + ' · ' + DIFFS[diffOf(g.c)] +
          '</span></div><div class="rs">' + tag + '<b>' + g.s + '</b></div></div>';
 }
 function renderRecords() {
   const avg = data.played ? Math.round(data.total / data.played) : 0;
   const top = data.games.slice().sort((a, b) => b.s - a.s).slice(0, 5);
   $('paneP').innerHTML =
-    '<div class="stats"><div><b>' + data.best + '</b><span>RÉCORD</span></div>' +
-    '<div><b>' + data.played + '</b><span>PARTIDAS</span></div>' +
-    '<div><b>' + avg + '</b><span>MEDIA</span></div></div>' +
+    '<div class="stats">' +
+      '<div><b>' + data.bests.F + '</b><span>FÁCIL</span></div>' +
+      '<div><b>' + data.bests.N + '</b><span>NORMAL</span></div>' +
+      '<div><b>' + data.bests.D + '</b><span>DIFÍCIL</span></div></div>' +
+    '<div class="stats last">' +
+      '<div><b>' + data.played + '</b><span>PARTIDAS</span></div>' +
+      '<div><b>' + avg + '</b><span>MEDIA</span></div></div>' +
     '<h3>MEJORES PARTIDAS</h3>' +
     (top.length ? top.map(rowHTML).join('') : '<p class="empty">Aún no hay partidas</p>');
   const recent = data.games.slice().reverse().slice(0, 30);
@@ -582,7 +700,22 @@ document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click
   $('paneG').classList.toggle('on', b.dataset.tab === 'games');
 }));
 
+// ---------- dificultad ----------
+function drawDiff() {
+  document.querySelectorAll('#diffSeg button').forEach(b => b.classList.toggle('on', b.dataset.d === data.diff));
+}
+document.querySelectorAll('#diffSeg button').forEach(b => b.addEventListener('click', () => {
+  data.diff = b.dataset.d;
+  saveData();
+  drawDiff();
+}));
+
 // ---------- botones ----------
+$('btnTheme').addEventListener('click', () => {
+  data.theme = isDark() ? 'light' : 'dark';
+  saveData();
+  applyTheme();
+});
 $('btnPlay').addEventListener('click', () => newGame());
 $('btnJoin').addEventListener('click', openJoin);
 $('btnRecords').addEventListener('click', () => { renderRecords(); showScreen('records'); });
@@ -599,7 +732,7 @@ $('btnRepeat').addEventListener('click', () => newGame(currentCode, targetScore)
 $('btnMenu').addEventListener('click', () => showScreen('home'));
 $('btnReset').addEventListener('click', () => {
   if (!confirm('¿Borrar todos tus récords y el historial de partidas?')) return;
-  data = { best: 0, played: 0, total: 0, games: [] };
+  data = { bests: { F: 0, N: 0, D: 0 }, played: 0, total: 0, games: [], diff: data.diff, theme: data.theme };
   saveData();
   renderRecords();
 });
@@ -657,10 +790,11 @@ function startDrag(e, idx, slot) {
   move(e);
 }
 
-// Inicio: se prepara una partida de fondo para que el tablero exista, pero se muestra el menú
+// Inicio: se prepara un tablero vacío de fondo, pero se muestra el menú
 grid = Array.from({ length: SIZE }, () => Array(SIZE).fill(0));
-pieces = [null, null, null]; score = 0; best = data.best; locked = false; over = true;
-setPalette(0);
+pieces = [null, null, null]; score = 0; best = data.bests.N; locked = false; over = true;
+drawDiff();
+applyTheme();
 showScreen('home');
 
 // ---------- modo offline ----------
