@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Bloques</title>
+<style>
+  :root { --bg:#f5f3ee; --cell:#e4e0d6; --ink:#2b2b2b; --block:#6b8f9c; --ok:#a9c4cd; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { overscroll-behavior: none; }
+  body {
+    margin: 0; min-height: 100vh; background: var(--bg); color: var(--ink);
+    font-family: -apple-system, system-ui, sans-serif;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 28px;
+    user-select: none; -webkit-user-select: none;
+  }
+  h1 { font-weight: 600; letter-spacing: .05em; margin: 0; }
+  #board {
+    display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px;
+    width: min(92vw, 380px); aspect-ratio: 1;
+  }
+  .cell { background: var(--cell); border-radius: 6px; }
+  .cell.on { background: var(--block); }
+  .cell.preview { background: var(--ok); }
+  #tray {
+    display: flex; justify-content: space-around; align-items: center;
+    width: min(92vw, 380px); height: 110px;
+  }
+  .slot { width: 30%; height: 100%; display: flex; align-items: center; justify-content: center; touch-action: none; }
+  .slot.used { visibility: hidden; }
+  .slot.dragging { opacity: .25; }
+  .piece { display: grid; }
+  .piece .b { border-radius: 5px; background: var(--block); }
+  .piece .e { background: transparent; }
+  .ghost { position: fixed; pointer-events: none; z-index: 10; opacity: .92; }
+  small { opacity: .5; }
+</style>
+</head>
+<body>
+  <h1>Bloques</h1>
+  <div id="board"></div>
+  <div id="tray"></div>
+  <small>Fase 2: arrastra las piezas al tablero</small>
+
+<script>
+const SIZE = 8, GAP = 4, TRAY_CELL = 20, LIFT = 50;
+
+const SHAPES = [
+  [[1]],
+  [[1,1]], [[1],[1]],
+  [[1,1,1]], [[1],[1],[1]],
+  [[1,1,1,1]], [[1],[1],[1],[1]],
+  [[1,1],[1,1]],
+  [[1,1,1],[1,1,1],[1,1,1]],
+  [[1,0],[1,0],[1,1]], [[1,1,1],[1,0,0]], [[1,1],[0,1],[0,1]], [[0,0,1],[1,1,1]],
+  [[1,1],[1,0]], [[1,1],[0,1]], [[1,0],[1,1]], [[0,1],[1,1]],
+  [[1,1,1],[0,1,0]]
+];
+
+const boardEl = document.getElementById('board');
+const trayEl = document.getElementById('tray');
+const grid = Array.from({length: SIZE}, () => Array(SIZE).fill(0));
+const cells = [];
+let pieces = [];
+
+// ---------- tablero ----------
+for (let r = 0; r < SIZE; r++) {
+  for (let c = 0; c < SIZE; c++) {
+    const d = document.createElement('div');
+    d.className = 'cell';
+    boardEl.appendChild(d);
+    cells.push(d);
+  }
+}
+function drawBoard() {
+  cells.forEach((d, i) => {
+    d.classList.remove('preview');
+    d.classList.toggle('on', grid[Math.floor(i / SIZE)][i % SIZE] === 1);
+  });
+}
+function cellSize() {
+  return (boardEl.getBoundingClientRect().width - GAP * (SIZE - 1)) / SIZE;
+}
+
+// ---------- piezas ----------
+function makePiece(shape, size) {
+  const el = document.createElement('div');
+  el.className = 'piece';
+  el.style.gridTemplateColumns = `repeat(${shape[0].length}, ${size}px)`;
+  el.style.gridAutoRows = `${size}px`;
+  el.style.gap = GAP + 'px';
+  shape.forEach(row => row.forEach(v => {
+    const b = document.createElement('div');
+    b.className = v ? 'b' : 'e';
+    el.appendChild(b);
+  }));
+  return el;
+}
+function dealPieces() {
+  pieces = [0, 1, 2].map(() => SHAPES[Math.floor(Math.random() * SHAPES.length)]);
+  drawTray();
+}
+function drawTray() {
+  trayEl.innerHTML = '';
+  pieces.forEach((shape, i) => {
+    const slot = document.createElement('div');
+    slot.className = 'slot' + (shape ? '' : ' used');
+    if (shape) {
+      slot.appendChild(makePiece(shape, TRAY_CELL));
+      slot.addEventListener('pointerdown', e => startDrag(e, i, slot));
+    }
+    trayEl.appendChild(slot);
+  });
+}
+
+// ---------- reglas básicas de colocación ----------
+function canPlace(shape, r0, c0) {
+  for (let r = 0; r < shape.length; r++) {
+    for (let c = 0; c < shape[0].length; c++) {
+      if (!shape[r][c]) continue;
+      const rr = r0 + r, cc = c0 + c;
+      if (rr < 0 || cc < 0 || rr >= SIZE || cc >= SIZE) return false;
+      if (grid[rr][cc]) return false;
+    }
+  }
+  return true;
+}
+function place(shape, r0, c0) {
+  shape.forEach((row, r) => row.forEach((v, c) => { if (v) grid[r0 + r][c0 + c] = 1; }));
+}
+
+// ---------- arrastrar y soltar ----------
+function startDrag(e, idx, slot) {
+  e.preventDefault();
+  const shape = pieces[idx];
+  const cs = cellSize(), step = cs + GAP;
+  const w = shape[0].length * step - GAP;
+  const h = shape.length * step - GAP;
+
+  const ghost = makePiece(shape, cs);
+  ghost.classList.add('ghost');
+  document.body.appendChild(ghost);
+  slot.classList.add('dragging');
+
+  let target = null;
+
+  function move(ev) {
+    const left = ev.clientX - w / 2;
+    const top = ev.clientY - h - LIFT;
+    ghost.style.left = left + 'px';
+    ghost.style.top = top + 'px';
+
+    const br = boardEl.getBoundingClientRect();
+    const col = Math.round((left - br.left) / step);
+    const row = Math.round((top - br.top) / step);
+
+    drawBoard();
+    target = null;
+    if (canPlace(shape, row, col)) {
+      target = { row, col };
+      shape.forEach((rw, r) => rw.forEach((v, c) => {
+        if (v) cells[(row + r) * SIZE + (col + c)].classList.add('preview');
+      }));
+    }
+  }
+  function end() {
+    window.removeEventListener('pointermove', move);
+    window.removeEventListener('pointerup', end);
+    window.removeEventListener('pointercancel', end);
+    ghost.remove();
+    if (target) {
+      place(shape, target.row, target.col);
+      pieces[idx] = null;
+      if (pieces.every(p => p === null)) dealPieces(); else drawTray();
+    } else {
+      slot.classList.remove('dragging');
+    }
+    drawBoard();
+  }
+  window.addEventListener('pointermove', move);
+  window.addEventListener('pointerup', end);
+  window.addEventListener('pointercancel', end);
+  move(e);
+}
+
+drawBoard();
+dealPieces();
+</script>
+</body>
+</html>
