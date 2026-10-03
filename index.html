@@ -427,8 +427,9 @@ function mulberry32(a) {
   };
 }
 let rand = Math.random;
+let weightOverride = null;                   // pesos mezclados según el tiempo (solo en partidas conjuntas)
 function pickShape() {                       // gasta siempre un único número aleatorio
-  const w = WEIGHTS[gameDiff];
+  const w = weightOverride || WEIGHTS[gameDiff];
   let r = rand() * w.total;
   for (let i = 0; i < w.list.length; i++) {
     r -= w.list[i];
@@ -534,7 +535,7 @@ function animateScore() {
 function updateScore() {
   if (mode === 'solo') { bestEl.textContent = best; animateScore(); }
   else mpRenderScores();
-  setPalette(Math.floor(score / LEVEL_POINTS));
+  setPalette(Math.floor(score / (mode === 'mp' ? MP_LEVEL : LEVEL_POINTS)));
 }
 
 // ---------- piezas ----------
@@ -656,17 +657,32 @@ function flatBoard() { return Uint8Array.from(grid.flat()); }
 
 // Genera la tanda n a partir de una semilla. Prueba intentos sucesivos hasta encontrar
 // uno que se pueda colocar entero en TODOS los tableros dados (uno en solitario, varios en grupo).
-function genDeal(seed, n, boards) {
-  let bestDeal = null, bestMin = -1, bestSum = -1;
+function mobility(cand, flat) {               // nº de sitios donde caben las piezas ahora mismo (más = más holgura)
+  let t = 0;
+  for (const s of cand) for (let r0 = 0; r0 <= SIZE - s.length; r0++) for (let c0 = 0; c0 <= SIZE - s[0].length; c0++) {
+    let ok = true;
+    for (let r = 0; r < s.length && ok; r++) for (let c = 0; c < s[0].length; c++) if (s[r][c] && flat[(r0 + r) * SIZE + c0 + c]) { ok = false; break; }
+    if (ok) t++;
+  }
+  return t;
+}
+// 'want' > 1: se reúnen hasta 'want' tandas jugables y se elige la que deja más holgura
+function genDeal(seed, n, boards, want) {
+  let bestDeal = null, bestMin = -1, bestSum = -1, good = 0, goodBest = null, goodMob = -1;
   for (let a = 0; a < MAX_ATTEMPTS; a++) {
     rand = mulberry32(hashStr(seed + '#' + n + '#' + a));
     const cand = [0, 1, 2].map(() => pickShape());
     let min = 3, sum = 0;
     for (const b of boards) { const m = maxPlaceable(cand, b); if (m < min) min = m; sum += m; }
     if (min > bestMin || (min === bestMin && sum > bestSum)) { bestMin = min; bestSum = sum; bestDeal = cand; }
-    if (min === 3) break;
+    if (min === 3) {
+      if (!want || want < 2) break;
+      const mob = boards.reduce((acc, b) => acc + mobility(cand, b), 0);
+      if (mob > goodMob) { goodMob = mob; goodBest = cand; }
+      if (++good >= want) break;
+    }
   }
-  return bestDeal;
+  return goodBest || bestDeal;
 }
 
 // ---------- flujo de una jugada (común) ----------
@@ -866,9 +882,12 @@ const MP = {
   tok: 0, room: null, id: null, name: '', host: false, diff: 'N', client: null, online: false,
   phase: 'idle',          // idle | lobby | playing | ended
   gid: null, lastGid: null, roster: [], peers: {}, drops: [], claims: {}, firstSeen: {}, settled: {},
-  rescue: false, gt0: 0, msgText: '', msgUntil: 0, saved: false, t0: 0, tick: null, tick2: null
+  rescue: false, order: [0, 1, 2, 3, 4], gt0: 0, msgText: '', msgUntil: 0, saved: false, t0: 0, tick: null, tick2: null
 };
-const MILESTONE = 300, CONFIRM_MS = 1200, COMMON_DEALS = 4;     // 4 tandas x 3 = las 12 primeras piezas iguales
+const MILESTONE = 200, MP_LEVEL = 200, CONFIRM_MS = 1200, COMMON_DEALS = 4;
+const RAMP_MS = 10 * 60 * 1000;                                 // en ~10 min las piezas llegan a la dificultad final
+const RAMPS = { F: [0, 1], N: [.3, 2], D: [1.2, 2] };           // posición en [fácil, normal, difícil]: [al empezar, al final]
+const wAt = (w, x) => { const i = Math.min(1, Math.floor(x)), f = x - i; return w[i] * (1 - f) + w[i + 1] * f; };     // 4 tandas x 3 = las 12 primeras piezas iguales
 const REWARDS = [
   ['clear', 'Tablero limpio'], ['pts100', '+100 puntos'], ['half', 'Media limpieza'],
   ['rescue', 'Piezas de rescate'], ['pts50', '+50 puntos']
@@ -1128,7 +1147,15 @@ function mpDeal() {
   const n = dealN;
   if (n < COMMON_DEALS) pieces = commonDeal(n);
   else if (MP.rescue) { MP.rescue = false; pieces = rescueDeal(n); }
-  else pieces = genDeal(MP.room + '|' + MP.gid + '|' + MP.id, n, [flatBoard()]);
+  else {
+    // dificultad creciente: mezcla de pesos entre la tabla inicial y la final según el tiempo de partida
+    const t = Math.max(0, Math.min(1, (nowMs() - MP.gt0) / RAMP_MS)), rp = RAMPS[gameDiff] || RAMPS.N;
+    const x = rp[0] + (rp[1] - rp[0]) * t;
+    const list = WEIGHT_TABLE.map(w => wAt(w, x));
+    weightOverride = { list, total: list.reduce((a, b) => a + b, 0) };
+    pieces = genDeal(MP.room + '|' + MP.gid + '|' + MP.id, n, [flatBoard()], 1 + Math.round(4 * (1 - t)));
+    weightOverride = null;
+  }
   dealN++;
   drawTray();
 }
@@ -1141,6 +1168,13 @@ function startMpGame() {
   score = 0; locked = false; over = false; newRecord = false;
   MP.drops = []; MP.saved = false; MP.claims = {}; MP.firstSeen = {}; MP.settled = {}; MP.rescue = false;
   MP.gt0 = nowMs(); MP.msgUntil = 0;
+  { // orden aleatorio (igual para todos) de los premios de esta partida
+    const rnd = mulberry32(hashStr(MP.room + '|' + MP.gid + '|rw'));
+    const o = REWARDS.map((_, i) => i);
+    for (let i = o.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [o[i], o[j]] = [o[j], o[i]]; }
+    MP.order = o;
+  }
+  weightOverride = null;
   Object.values(MP.peers).forEach(p => { p.gs = null; });
   cancelAnimationFrame(raf);
   gameEl.classList.remove('solo'); gameEl.classList.add('mp');
@@ -1192,8 +1226,9 @@ function nextMilestone() {
   while (MP.settled[m] || (m in MP.claims) || claimsFor(m).length) m++;
   return m * MILESTONE;
 }
+function rewardFor(m) { return REWARDS[MP.order[(m - 1) % REWARDS.length]]; }
 function applyReward(m) {
-  const kind = REWARDS[(m - 1) % REWARDS.length][0];
+  const kind = rewardFor(m)[0];
   if (kind === 'clear') grid = emptyGrid();
   else if (kind === 'half') {
     let top = 0, bot = 0;
@@ -1205,7 +1240,7 @@ function applyReward(m) {
   else if (kind === 'pts50') score += 50;
   else if (kind === 'rescue') MP.rescue = true;
   drawBoard(); updateScore();
-  floatText(REWARDS[(m - 1) % REWARDS.length][1]);
+  floatText(rewardFor(m)[1]);
   mpCheckClaims();
 }
 function mpSettle() {
@@ -1218,7 +1253,7 @@ function mpSettle() {
     MP.settled[m] = true; changed = true;
     const w = winnerOf(m);
     if (!w) return;
-    const label = REWARDS[(m - 1) % REWARDS.length][1];
+    const label = rewardFor(m)[1];
     MP.msgText = (w === MP.id ? 'Has llegado primero a ' : peerName(w) + ' llega primero a ') + (m * MILESTONE) + ': ' + label;
     MP.msgUntil = nowMs() + 5000;
     if (w === MP.id && !over) applyReward(m);
@@ -1228,6 +1263,7 @@ function mpSettle() {
 
 function mpMaybeOver() {
   if (over || mode !== 'mp' || MP.phase !== 'playing') return;
+  if (locked || !pieces || pieces.every(p => p === null)) return;      // a mitad de una jugada: se comprobará al acabar
   if (anyMoveLeft() || pendingMine() > 0) return;
   mpMyOver();
 }
