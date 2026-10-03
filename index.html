@@ -16,7 +16,7 @@
   :root {
     --bg:#f4f1ea; --cell:#e6e2d8; --ink:#2b2b2b;
     --card:#fff; --line:rgba(0,0,0,.07); --line2:rgba(0,0,0,.05); --track:rgba(0,0,0,.05);
-    --flash:#fff; --overlay:rgba(244,241,234,.9); --glow:rgba(255,255,255,.9); --err:#b3503f;
+    --flash:#fff; --overlay:rgba(244,241,234,.92); --glow:rgba(255,255,255,.9); --err:#b3503f;
     --w-bg:#dcebdf; --w-fg:#3d7a50; --l-bg:#eee; --l-fg:#888; --t-bg:#efe7d2; --t-fg:#8a7236;
     --block:#6b8f9c; --ok:#b4cbd2;
   }
@@ -25,7 +25,7 @@
     :root:not([data-theme="light"]) {
       --bg:#1a1b1e; --cell:#292b30; --ink:#ecebe6;
       --card:#25272c; --line:rgba(255,255,255,.09); --line2:rgba(255,255,255,.07); --track:rgba(255,255,255,.07);
-      --flash:#d9d8d2; --overlay:rgba(26,27,30,.9); --glow:rgba(0,0,0,.55); --err:#e07b67;
+      --flash:#d9d8d2; --overlay:rgba(26,27,30,.92); --glow:rgba(0,0,0,.55); --err:#e07b67;
       --w-bg:#24382c; --w-fg:#7cc392; --l-bg:#2d2f34; --l-fg:#8d8f96; --t-bg:#3a3524; --t-fg:#d4b96a;
     }
   }
@@ -33,7 +33,7 @@
   :root[data-theme="dark"] {
     --bg:#1a1b1e; --cell:#292b30; --ink:#ecebe6;
     --card:#25272c; --line:rgba(255,255,255,.09); --line2:rgba(255,255,255,.07); --track:rgba(255,255,255,.07);
-    --flash:#d9d8d2; --overlay:rgba(26,27,30,.9); --glow:rgba(0,0,0,.55); --err:#e07b67;
+    --flash:#d9d8d2; --overlay:rgba(26,27,30,.92); --glow:rgba(0,0,0,.55); --err:#e07b67;
     --w-bg:#24382c; --w-fg:#7cc392; --l-bg:#2d2f34; --l-fg:#8d8f96; --t-bg:#3a3524; --t-fg:#d4b96a;
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -74,11 +74,13 @@
     display: block; width: min(78vw, 300px); padding: 16px 24px; font-size: 17px; font-weight: 600;
     border: 0; border-radius: 16px; background: var(--block); color: #fff; letter-spacing: .02em;
     box-shadow: 0 6px 16px -6px rgba(0,0,0,.25);
-    transition: transform .12s ease, background .9s ease;
+    transition: transform .12s ease, background .9s ease, opacity .2s ease;
   }
   .btn:active { transform: scale(.97); }
+  .btn:disabled { opacity: .35; transform: none; }
   .btn.sec { background: var(--card); color: var(--ink); font-weight: 500; box-shadow: 0 1px 0 var(--line2), inset 0 0 0 1px var(--line); }
   .btn.ghost { background: transparent; color: var(--ink); opacity: .6; font-weight: 500; box-shadow: none; padding: 12px; }
+  .btn.ghost:disabled { opacity: .25; }
 
   /* ---------- selector segmentado (dificultad y pestañas) ---------- */
   .tabs, .seg { display: flex; background: var(--track); border-radius: 12px; padding: 3px; }
@@ -90,6 +92,18 @@
   }
   .seg button { padding: 10px 0; border-radius: 11px; }
   .tabs button.on, .seg button.on { background: var(--card); opacity: 1; box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+
+  /* ---------- campos de texto ---------- */
+  .field {
+    font-size: 22px; text-align: center; font-family: inherit;
+    padding: 14px; width: min(78vw, 300px); border: 0; border-radius: 16px; background: var(--card); color: var(--ink);
+    box-shadow: inset 0 0 0 1.5px var(--line); outline: none;
+    user-select: text; -webkit-user-select: text;
+  }
+  .field:focus { box-shadow: inset 0 0 0 2px var(--block); }
+  #codeInput { font-size: 28px; letter-spacing: .22em; padding-left: calc(14px + .22em); text-transform: uppercase; }
+  .lbl { font-size: 12px; letter-spacing: .16em; opacity: .45; font-weight: 500; }
+  .err { min-height: 20px; color: var(--err); font-size: 14px; text-align: center; max-width: min(80vw, 320px); }
 
   /* ---------- inicio ---------- */
   #home { gap: 14px; }
@@ -104,12 +118,44 @@
     font-size: 12px; letter-spacing: .06em; opacity: .35; pointer-events: none;
   }
 
+  /* ---------- juntos / unirse / sala ---------- */
+  #together, #join { gap: 12px; }
+  #together h2, #join h2 { margin: 0 0 6px; font-size: 22px; font-weight: 500; letter-spacing: .06em; }
+  #together .btn, #join .btn { margin-top: 2px; }
+  .gap { height: 8px; }
+  #room { gap: 6px; }
+  .roomcode { font-size: 54px; font-weight: 600; letter-spacing: .16em; padding-left: .16em; line-height: 1.1; margin: 4px 0 2px; }
+  .plist { width: min(84vw, 340px); display: flex; flex-direction: column; gap: 8px; margin: 16px 0 10px; }
+  .pl {
+    display: flex; justify-content: space-between; align-items: center; background: var(--card); border-radius: 14px;
+    padding: 14px 16px; box-shadow: inset 0 0 0 1px var(--line2); font-size: 17px; font-weight: 500;
+  }
+  .pl span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pl small { font-size: 10px; letter-spacing: .12em; opacity: .45; font-weight: 600; flex-shrink: 0; margin-left: 10px; }
+  .roommsg { min-height: 22px; font-size: 14px; opacity: .55; text-align: center; max-width: min(80vw, 320px); margin-bottom: 6px; }
+
   /* ---------- juego ---------- */
   #game { gap: 26px; }
   #scores { display: flex; gap: 48px; text-align: center; }
   #scores div { display: flex; flex-direction: column; gap: 2px; }
   #scores span { font-size: 11px; letter-spacing: .16em; opacity: .45; font-weight: 500; }
   #scores b { font-size: 34px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.1; }
+  #mpScores { display: none; gap: 30px; text-align: center; justify-content: center; max-width: 94vw; }
+  #mpScores div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  #mpScores span {
+    font-size: 11px; letter-spacing: .12em; opacity: .5; font-weight: 600; text-transform: uppercase;
+    max-width: 112px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  #mpScores b { font-size: 34px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.1; }
+  #mpScores .me span { color: var(--block); opacity: 1; }
+  #mpScores .out b { opacity: .4; }
+  #mpScores.n3 { gap: 20px; } #mpScores.n3 b { font-size: 28px; } #mpScores.n3 span { max-width: 84px; }
+  #mpScores.n4 { gap: 12px; } #mpScores.n4 b { font-size: 24px; } #mpScores.n4 span { max-width: 66px; font-size: 10px; }
+  #mpStatus { display: none; font-size: 13px; opacity: .6; min-height: 18px; text-align: center; margin-top: -16px; flex-direction: column; align-items: center; gap: 4px; }
+  #game.mp #scores { display: none; }
+  #game.mp #mpScores { display: flex; }
+  #game.mp #mpStatus { display: flex; }
+  #btnDrop { display: none; background: none; border: 0; color: var(--block); font-size: 13px; font-weight: 600; padding: 4px 8px; }
   #boardWrap { position: relative; width: min(92vw, 380px); width: min(92vw, 380px, 50dvh); }
   #board {
     display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; width: 100%; aspect-ratio: 1;
@@ -163,19 +209,17 @@
   #over .btn { margin-top: 8px; }
   #over .btn.ghost { margin-top: 0; }
   #over .sp { height: 14px; }
-
-  /* ---------- introducir código ---------- */
-  #join { gap: 12px; }
-  #join h2 { margin: 0 0 4px; font-size: 22px; font-weight: 500; letter-spacing: .06em; }
-  .hint { font-size: 14px; opacity: .5; margin-bottom: 10px; text-align: center; }
-  #codeInput {
-    font-size: 26px; text-align: center; letter-spacing: .14em; text-transform: uppercase; font-family: inherit;
-    padding: 14px; width: min(78vw, 300px); border: 0; border-radius: 16px; background: var(--card); color: var(--ink);
-    box-shadow: inset 0 0 0 1.5px var(--line); outline: none;
-    user-select: text; -webkit-user-select: text;
-  }
-  #codeInput:focus { box-shadow: inset 0 0 0 2px var(--block); }
-  #joinErr { min-height: 20px; color: var(--err); font-size: 14px; text-align: center; }
+  #overList { display: none; width: min(82vw, 330px); margin: 6px 0 4px; }
+  #over.mp #overList { display: block; }
+  #over.mp #finalScore { display: none; }
+  .orow { display: flex; justify-content: space-between; align-items: center; padding: 12px 4px; border-bottom: 1px solid var(--line); gap: 10px; }
+  .orow .nm { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 18px; font-weight: 500; }
+  .orow .nm span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .orow b { font-size: 26px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .orow.top .nm { font-weight: 700; }
+  #btnAgainMp { display: none; }
+  #over.mp.done #btnAgainMp { display: block; }
+  #over.mp #btnAgain { display: none; }
 
   /* ---------- récords ---------- */
   #records { justify-content: flex-start; padding-top: calc(env(safe-area-inset-top) + 62px); }
@@ -189,11 +233,11 @@
   .stats b { display: block; font-size: 28px; font-weight: 600; font-variant-numeric: tabular-nums; }
   .stats span { font-size: 10px; letter-spacing: .14em; opacity: .45; }
   .pane h3 { margin: 0 0 6px; font-size: 12px; letter-spacing: .16em; font-weight: 500; opacity: .45; }
-  .row { display: flex; justify-content: space-between; align-items: center; padding: 13px 2px; border-bottom: 1px solid var(--line); }
-  .rc { display: flex; flex-direction: column; gap: 2px; }
-  .rc b { font-size: 17px; letter-spacing: .12em; font-weight: 600; }
+  .row { display: flex; justify-content: space-between; align-items: center; padding: 13px 2px; border-bottom: 1px solid var(--line); gap: 10px; }
+  .rc { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .rc b { font-size: 17px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .rc span { font-size: 12px; opacity: .45; }
-  .rs { display: flex; align-items: center; gap: 12px; }
+  .rs { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
   .rs b { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
   .tagw { font-size: 11px; font-weight: 600; letter-spacing: .06em; padding: 3px 8px; border-radius: 8px; }
   .tagw.w { background: var(--w-bg); color: var(--w-fg); }
@@ -218,44 +262,68 @@
       <button data-d="N">Normal</button>
       <button data-d="D">Difícil</button>
     </div>
-    <button class="btn" id="btnPlay">Nueva partida</button>
-    <button class="btn sec" id="btnJoin">Introducir código</button>
+    <button class="btn" id="btnPlay">Jugar solo</button>
+    <button class="btn sec" id="btnTogether">Juguem junts</button>
     <button class="btn sec" id="btnRecords">Récords</button>
     <div class="credit">created by guillem</div>
   </div>
 
   <!-- JUEGO -->
-  <div class="screen" id="game">
+  <div class="screen solo" id="game">
     <button class="back" id="gameBack" aria-label="Menú"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
     <div id="scores">
       <div><span>PUNTOS</span><b id="score">0</b></div>
       <div><span>RÉCORD</span><b id="best">0</b></div>
     </div>
+    <div id="mpScores"></div>
+    <div id="mpStatus"><span id="mpStatusText"></span><button id="btnDrop"></button></div>
     <div id="boardWrap"><div id="board"></div></div>
     <div id="tray"></div>
 
     <div id="over">
-      <h2>FIN DE PARTIDA</h2>
+      <h2 id="overTitle">FIN DE PARTIDA</h2>
       <div id="overInfo"></div>
       <div id="finalScore">0</div>
+      <div id="overList"></div>
       <div class="msg" id="recMsg"></div>
-      <div class="msg" id="vsMsg"></div>
       <div class="sp"></div>
-      <button class="btn" id="btnShare">Compartir reto</button>
-      <button class="btn sec" id="btnAgain">Nueva partida</button>
-      <button class="btn ghost" id="btnRepeat">Repetir este código</button>
+      <button class="btn" id="btnAgain">Nueva partida</button>
+      <button class="btn" id="btnAgainMp">Volver a la sala</button>
       <button class="btn ghost" id="btnMenu">Menú</button>
     </div>
   </div>
 
+  <!-- JUGAR JUNTOS -->
+  <div class="screen" id="together">
+    <button class="back" data-go="home" aria-label="Volver"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+    <h2>Juguem junts</h2>
+    <div class="lbl">TU NOMBRE</div>
+    <input class="field" id="nameInput" type="text" autocomplete="off" autocorrect="off" spellcheck="false" maxlength="14" placeholder="Nombre">
+    <div class="err" id="togetherErr"></div>
+    <button class="btn" id="btnGen">Generar código</button>
+    <button class="btn sec" id="btnEnter">Introducir código</button>
+    <div class="lbl" id="togetherDiff" style="margin-top:10px"></div>
+  </div>
+
   <!-- INTRODUCIR CÓDIGO -->
   <div class="screen" id="join">
-    <button class="back" data-go="home" aria-label="Volver"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+    <button class="back" data-go="together" aria-label="Volver"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
     <h2>Introducir código</h2>
-    <div class="hint">Ejemplo: K7X2 o K7X2-340<br>También puedes pegar el mensaje del reto</div>
-    <input id="codeInput" type="text" autocapitalize="characters" autocomplete="off" autocorrect="off" spellcheck="false" maxlength="300" placeholder="CÓDIGO">
-    <div id="joinErr"></div>
-    <button class="btn" id="btnGo">Jugar</button>
+    <input class="field" id="codeInput" type="text" autocapitalize="characters" autocomplete="off" autocorrect="off" spellcheck="false" maxlength="5" placeholder="CÓDIGO">
+    <div class="err" id="joinErr"></div>
+    <button class="btn" id="btnGo">Entrar</button>
+  </div>
+
+  <!-- SALA -->
+  <div class="screen" id="room">
+    <button class="back" id="roomBack" aria-label="Salir de la sala"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+    <div class="lbl">SALA</div>
+    <div class="roomcode" id="roomCode">-----</div>
+    <div class="lbl" id="roomDiff"></div>
+    <div class="plist" id="plist"></div>
+    <div class="roommsg" id="roomMsg"></div>
+    <button class="btn" id="btnStart">Jugar</button>
+    <button class="btn ghost" id="btnShareCode">Compartir código</button>
   </div>
 
   <!-- RÉCORDS -->
@@ -291,15 +359,15 @@ const SHAPES = [
 
 // Probabilidad de cada pieza según la dificultad: [fácil, normal, difícil]
 const WEIGHT_TABLE = [
-  [3, 1, .4],                                   // 1x1
-  [2.5, 1, .6], [2.5, 1, .6],                   // doble
-  [2, 1, 1], [2, 1, 1],                         // triple
-  [.8, 1, 2], [.8, 1, 2],                       // línea de 4
-  [2.5, 1, 1.2],                                // 2x2
-  [.2, 1, 2.5],                                 // 3x3
-  [.8, 1, 2], [.8, 1, 2], [.8, 1, 2], [.8, 1, 2],       // L grande
-  [2, 1, .8], [2, 1, .8], [2, 1, .8], [2, 1, .8],       // esquina pequeña
-  [.8, 1, 1.8]                                  // T
+  [3, 1, .4],
+  [2.5, 1, .6], [2.5, 1, .6],
+  [2, 1, 1], [2, 1, 1],
+  [.8, 1, 2], [.8, 1, 2],
+  [2.5, 1, 1.2],
+  [.2, 1, 2.5],
+  [.8, 1, 2], [.8, 1, 2], [.8, 1, 2], [.8, 1, 2],
+  [2, 1, .8], [2, 1, .8], [2, 1, .8], [2, 1, .8],
+  [.8, 1, 1.8]
 ];
 const WEIGHTS = { F: { list: [], total: 0 }, N: { list: [], total: 0 }, D: { list: [], total: 0 } };
 ['F', 'N', 'D'].forEach((k, j) => {
@@ -318,7 +386,7 @@ const COLORS = [
   '#aeb4bc', // plata
   '#dcaa28'  // oro
 ];
-function mixHex(a, b, k) {            // k = cuánto de b se mezcla en a
+function mixHex(a, b, k) {
   const pa = [1, 3, 5].map(i => parseInt(a.slice(i, i + 2), 16));
   const pb = [1, 3, 5].map(i => parseInt(b.slice(i, i + 2), 16));
   return '#' + pa.map((v, i) => Math.round(v + (pb[i] - v) * k).toString(16).padStart(2, '0')).join('');
@@ -332,19 +400,11 @@ function setPalette(level) {
   const b = COLORS[idx];
   const root = document.documentElement.style;
   root.setProperty('--block', b);
-  // vista previa: más clara en modo claro, más apagada en modo oscuro
   root.setProperty('--ok', dark ? mixHex(b, '#292b30', .45) : mixHex(b, '#ffffff', .5));
 }
 
-// ---------- código de partida -> piezas idénticas ----------
-// El código lleva la dificultad: 4 caracteres = Normal, +F = Fácil, +D = Difícil
+// ---------- números aleatorios con semilla ----------
 const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-function randomCode(diff) {
-  let s = '';
-  for (let i = 0; i < 4; i++) s += ALPHABET[Math.floor(Math.random() * ALPHABET.length)];
-  return s + (diff === 'N' ? '' : diff);
-}
-function diffOf(code) { return code.length === 5 ? code[4] : 'N'; }
 function hashStr(s) {
   let h = 1779033703 ^ s.length;
   for (let i = 0; i < s.length; i++) {
@@ -363,17 +423,8 @@ function mulberry32(a) {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
-function parseCode(text) {
-  const t = text.trim().toUpperCase();
-  let m = t.match(/^([A-Z0-9]{4}[FD]?)(?:\s*-\s*(\d{1,6}))?$/);
-  if (!m) m = t.match(/\b([A-Z0-9]{4}[FD]?)-(\d{1,6})\b/);
-  if (!m) return null;
-  return { code: m[1], target: m[2] ? parseInt(m[2], 10) : null };
-}
 let rand = Math.random;
-// La elección de pieza gasta siempre un único número aleatorio, así que dos móviles
-// con el mismo código reciben exactamente las mismas piezas, jueguen como jueguen.
-function pickShape() {
+function pickShape() {                       // gasta siempre un único número aleatorio
   const w = WEIGHTS[gameDiff];
   let r = rand() * w.total;
   for (let i = 0; i < w.list.length; i++) {
@@ -382,29 +433,30 @@ function pickShape() {
   }
   return SHAPES[SHAPES.length - 1];
 }
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
 
 // ---------- datos guardados en el móvil ----------
 function loadData() {
-  const fresh = { bests: { F: 0, N: 0, D: 0 }, played: 0, total: 0, games: [], diff: 'N', theme: null };
+  const fresh = { bests: { F: 0, N: 0, D: 0 }, played: 0, total: 0, games: [], diff: 'N', theme: null, name: '' };
   try {
     const raw = localStorage.getItem('bloques_v2');
     if (raw) {
       const d = JSON.parse(raw);
       if (d && Array.isArray(d.games)) {
         const bests = Object.assign({ F: 0, N: 0, D: 0 }, d.bests || {});
-        if (!d.bests && typeof d.best === 'number') bests.N = d.best;   // récord de versiones anteriores
+        if (!d.bests && typeof d.best === 'number') bests.N = d.best;
         return {
           bests, played: d.played || 0, total: d.total || 0, games: d.games,
           diff: ['F', 'N', 'D'].includes(d.diff) ? d.diff : 'N',
-          theme: (d.theme === 'light' || d.theme === 'dark') ? d.theme : null
+          theme: (d.theme === 'light' || d.theme === 'dark') ? d.theme : null,
+          name: typeof d.name === 'string' ? d.name.slice(0, 14) : ''
         };
       }
     }
   } catch (e) {}
-  try {
-    const old = parseInt(localStorage.getItem('bloques_best') || '0', 10) || 0;
-    fresh.bests.N = old;
-  } catch (e) {}
+  try { fresh.bests.N = parseInt(localStorage.getItem('bloques_best') || '0', 10) || 0; } catch (e) {}
   return fresh;
 }
 function saveData() {
@@ -433,17 +485,17 @@ if (darkQuery) {
   else if (darkQuery.addListener) darkQuery.addListener(onChange);
 }
 
-// ---------- referencias ----------
+// ---------- referencias y estado de la partida ----------
 const $ = id => document.getElementById(id);
-const boardEl = $('board'), trayEl = $('tray'), scoreEl = $('score'), bestEl = $('best'), overEl = $('over');
+const boardEl = $('board'), trayEl = $('tray'), scoreEl = $('score'), bestEl = $('best'), overEl = $('over'), gameEl = $('game');
 
-let grid, pieces, score, best, locked, over, currentCode, targetScore, gameDiff = 'N', newRecord = false, shown = 0, raf = 0, dealN = 0;
+let mode = 'solo';                       // 'solo' | 'mp'
+let grid, pieces, score = 0, best = 0, locked = false, over = true, gameDiff = 'N', newRecord = false;
+let shown = 0, raf = 0, dealN = 0, dealSeed = '', gameTok = 0;
 const cells = [];
 
-// ---------- pantallas ----------
 function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.toggle('active', s.id === id));
-  if (id !== 'game') overEl.classList.remove('show');
   if (id === 'home') setPalette(0);
 }
 
@@ -454,6 +506,7 @@ for (let i = 0; i < SIZE * SIZE; i++) {
   boardEl.appendChild(d);
   cells.push(d);
 }
+function emptyGrid() { return Array.from({ length: SIZE }, () => Array(SIZE).fill(0)); }
 function drawBoard() {
   cells.forEach((d, i) => {
     d.classList.remove('preview', 'clearing');
@@ -476,8 +529,8 @@ function animateScore() {
   })(t0);
 }
 function updateScore() {
-  bestEl.textContent = best;
-  animateScore();
+  if (mode === 'solo') { bestEl.textContent = best; animateScore(); }
+  else mpRenderScores();
   setPalette(Math.floor(score / LEVEL_POINTS));
 }
 
@@ -495,75 +548,9 @@ function makePiece(shape, size) {
   }));
   return el;
 }
-// ---------- tandas siempre jugables ----------
-// Comprueba, sobre el tablero actual, cuántas de las 3 piezas se pueden colocar seguidas
-// en algún orden (contando las líneas que se van borrando por el camino). Devuelve 0-3.
-const MAX_ATTEMPTS = 80, NODE_LIMIT = 60000;
-function maxPlaceable(shapes) {
-  let best = 0, nodes = 0;
-  const used = shapes.map(() => false);
-
-  function fits(g, s, r0, c0) {
-    for (let r = 0; r < s.length; r++)
-      for (let c = 0; c < s[0].length; c++)
-        if (s[r][c] && g[(r0 + r) * SIZE + c0 + c]) return false;
-    return true;
-  }
-  function put(g, s, r0, c0) {
-    const n = g.slice();
-    for (let r = 0; r < s.length; r++)
-      for (let c = 0; c < s[0].length; c++)
-        if (s[r][c]) n[(r0 + r) * SIZE + c0 + c] = 1;
-    const fullR = [], fullC = [];
-    for (let r = 0; r < SIZE; r++) { let ok = true; for (let c = 0; c < SIZE && ok; c++) if (!n[r * SIZE + c]) ok = false; if (ok) fullR.push(r); }
-    for (let c = 0; c < SIZE; c++) { let ok = true; for (let r = 0; r < SIZE && ok; r++) if (!n[r * SIZE + c]) ok = false; if (ok) fullC.push(c); }
-    fullR.forEach(r => { for (let c = 0; c < SIZE; c++) n[r * SIZE + c] = 0; });
-    fullC.forEach(c => { for (let r = 0; r < SIZE; r++) n[r * SIZE + c] = 0; });
-    return n;
-  }
-  function dfs(g, placed) {
-    if (placed > best) best = placed;
-    if (best === shapes.length || nodes > NODE_LIMIT) return;
-    const seen = new Set();
-    for (let i = 0; i < shapes.length; i++) {
-      if (used[i]) continue;
-      const key = JSON.stringify(shapes[i]);
-      if (seen.has(key)) continue;           // dos piezas iguales dan el mismo resultado
-      seen.add(key);
-      const s = shapes[i];
-      used[i] = true;
-      for (let r0 = 0; r0 <= SIZE - s.length; r0++) {
-        for (let c0 = 0; c0 <= SIZE - s[0].length; c0++) {
-          if (!fits(g, s, r0, c0)) continue;
-          nodes++;
-          dfs(put(g, s, r0, c0), placed + 1);
-          if (best === shapes.length || nodes > NODE_LIMIT) { used[i] = false; return; }
-        }
-      }
-      used[i] = false;
-    }
-  }
-  dfs(Uint8Array.from(grid.flat()), 0);
-  return best;
-}
-
-// Cada tanda se saca de una semilla propia (código + nº de tanda + intento). Si el primer
-// intento no se puede colocar entero en tu tablero, se prueba el siguiente hasta encontrar uno que sí.
-function dealPieces() {
-  let bestDeal = null, bestCount = -1;
-  for (let a = 0; a < MAX_ATTEMPTS; a++) {
-    rand = mulberry32(hashStr(currentCode + '#' + dealN + '#' + a));
-    const cand = [0, 1, 2].map(() => pickShape());
-    const m = maxPlaceable(cand);
-    if (m > bestCount) { bestCount = m; bestDeal = cand; }
-    if (m === 3) break;
-  }
-  dealN++;
-  pieces = bestDeal;
-  drawTray();
-}
 function drawTray() {
   trayEl.innerHTML = '';
+  if (!pieces) return;
   pieces.forEach((shape, i) => {
     const slot = document.createElement('div');
     slot.className = 'slot' + (shape ? '' : ' used');
@@ -601,6 +588,7 @@ function findFull() {
   return { rows, cols };
 }
 function anyMoveLeft() {
+  if (!pieces) return true;
   for (const shape of pieces) {
     if (!shape) continue;
     for (let r = 0; r < SIZE; r++)
@@ -610,15 +598,75 @@ function anyMoveLeft() {
   return false;
 }
 
-// ---------- flujo de una jugada ----------
-function afterMove() {
-  if (pieces.every(p => p === null)) dealPieces(); else drawTray();
-  if (score > best) { best = score; newRecord = true; data.bests[gameDiff] = best; saveData(); }
-  updateScore();
-  drawBoard();
-  if (!anyMoveLeft()) endGame();
+// ---------- tandas siempre jugables ----------
+// Cuántas de las 3 piezas se pueden colocar seguidas, en algún orden, sobre un tablero dado
+// (contando las líneas que se van borrando por el camino). Devuelve 0-3.
+const MAX_ATTEMPTS = 80, NODE_LIMIT = 60000;
+function maxPlaceable(shapes, startFlat) {
+  let best = 0, nodes = 0;
+  const used = shapes.map(() => false);
+
+  function fits(g, s, r0, c0) {
+    for (let r = 0; r < s.length; r++)
+      for (let c = 0; c < s[0].length; c++)
+        if (s[r][c] && g[(r0 + r) * SIZE + c0 + c]) return false;
+    return true;
+  }
+  function put(g, s, r0, c0) {
+    const n = g.slice();
+    for (let r = 0; r < s.length; r++)
+      for (let c = 0; c < s[0].length; c++)
+        if (s[r][c]) n[(r0 + r) * SIZE + c0 + c] = 1;
+    const fullR = [], fullC = [];
+    for (let r = 0; r < SIZE; r++) { let ok = true; for (let c = 0; c < SIZE && ok; c++) if (!n[r * SIZE + c]) ok = false; if (ok) fullR.push(r); }
+    for (let c = 0; c < SIZE; c++) { let ok = true; for (let r = 0; r < SIZE && ok; r++) if (!n[r * SIZE + c]) ok = false; if (ok) fullC.push(c); }
+    fullR.forEach(r => { for (let c = 0; c < SIZE; c++) n[r * SIZE + c] = 0; });
+    fullC.forEach(c => { for (let r = 0; r < SIZE; r++) n[r * SIZE + c] = 0; });
+    return n;
+  }
+  function dfs(g, placed) {
+    if (placed > best) best = placed;
+    if (best === shapes.length || nodes > NODE_LIMIT) return;
+    const seen = new Set();
+    for (let i = 0; i < shapes.length; i++) {
+      if (used[i]) continue;
+      const key = JSON.stringify(shapes[i]);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const s = shapes[i];
+      used[i] = true;
+      for (let r0 = 0; r0 <= SIZE - s.length; r0++) {
+        for (let c0 = 0; c0 <= SIZE - s[0].length; c0++) {
+          if (!fits(g, s, r0, c0)) continue;
+          nodes++;
+          dfs(put(g, s, r0, c0), placed + 1);
+          if (best === shapes.length || nodes > NODE_LIMIT) { used[i] = false; return; }
+        }
+      }
+      used[i] = false;
+    }
+  }
+  dfs(startFlat, 0);
+  return best;
+}
+function flatBoard() { return Uint8Array.from(grid.flat()); }
+
+// Genera la tanda n a partir de una semilla. Prueba intentos sucesivos hasta encontrar
+// uno que se pueda colocar entero en TODOS los tableros dados (uno en solitario, varios en grupo).
+function genDeal(seed, n, boards) {
+  let bestDeal = null, bestMin = -1, bestSum = -1;
+  for (let a = 0; a < MAX_ATTEMPTS; a++) {
+    rand = mulberry32(hashStr(seed + '#' + n + '#' + a));
+    const cand = [0, 1, 2].map(() => pickShape());
+    let min = 3, sum = 0;
+    for (const b of boards) { const m = maxPlaceable(cand, b); if (m < min) min = m; sum += m; }
+    if (min > bestMin || (min === bestMin && sum > bestSum)) { bestMin = min; bestSum = sum; bestDeal = cand; }
+    if (min === 3) break;
+  }
+  return bestDeal;
 }
 
+// ---------- flujo de una jugada (común) ----------
 function floatText(txt) {
   const f = document.createElement('div');
   f.className = 'float';
@@ -626,13 +674,12 @@ function floatText(txt) {
   $('boardWrap').appendChild(f);
   setTimeout(() => f.remove(), 1000);
 }
-
 function finishPlacement(shape, row, col, idx) {
+  const tok = gameTok;
   score += place(shape, row, col);
   pieces[idx] = null;
   drawBoard();
 
-  // pequeña animación al colocar
   shape.forEach((rw, r) => rw.forEach((v, c) => {
     if (!v) return;
     const el = cells[(row + r) * SIZE + (col + c)];
@@ -651,6 +698,7 @@ function finishPlacement(shape, row, col, idx) {
   toClear.forEach(i => cells[i].classList.add('clearing'));
 
   setTimeout(() => {
+    if (tok !== gameTok) return;
     toClear.forEach(i => { grid[Math.floor(i / SIZE)][i % SIZE] = 0; });
     const bonus = 10 * lines * lines;
     score += bonus;
@@ -659,101 +707,557 @@ function finishPlacement(shape, row, col, idx) {
     afterMove();
   }, 220);
 }
-
-function endGame() {
-  over = true;
-  let w = null;
-  let vs = '';
-  if (targetScore != null) {
-    if (score > targetScore) { w = 1; vs = '¡Ganaste! Superas el objetivo por ' + (score - targetScore); }
-    else if (score === targetScore) { w = 2; vs = 'Empate con el objetivo'; }
-    else { w = 0; vs = 'Te han faltado ' + (targetScore - score) + ' puntos para ganar'; }
-  }
-  data.played++;
-  data.total += score;
-  data.games.push({ c: currentCode, s: score, d: Date.now(), w });
-  if (data.games.length > 100) data.games = data.games.slice(-100);
-  saveData();
-
-  $('overInfo').textContent = DIFFS[gameDiff].toUpperCase() + '  ·  ' + currentCode;
-  $('finalScore').textContent = score;
-  $('recMsg').textContent = newRecord ? '¡Nuevo récord!' : '';
-  $('vsMsg').textContent = vs;
-  setTimeout(() => overEl.classList.add('show'), 350);
+function afterMove() {
+  if (mode === 'mp') { mpAfterMove(); return; }
+  if (pieces.every(p => p === null)) dealSolo(); else drawTray();
+  if (score > best) { best = score; newRecord = true; data.bests[gameDiff] = best; saveData(); }
+  updateScore();
+  drawBoard();
+  if (!anyMoveLeft()) endSolo();
 }
 
-// ---------- nueva partida ----------
-function newGame(code, target) {
-  currentCode = code || randomCode(data.diff);
-  gameDiff = diffOf(currentCode);
-  targetScore = (target === undefined) ? null : target;
+// ======================================================================
+//  MODO SOLO (sin códigos)
+// ======================================================================
+function dealSolo() {
+  pieces = genDeal(dealSeed, dealN, [flatBoard()]);
+  dealN++;
+  drawTray();
+}
+function newSolo() {
+  gameTok++;
+  mode = 'solo';
+  gameDiff = data.diff;
+  dealSeed = Math.random().toString(36).slice(2);
   dealN = 0;
-  grid = Array.from({ length: SIZE }, () => Array(SIZE).fill(0));
+  grid = emptyGrid();
   score = 0; locked = false; over = false; newRecord = false;
   best = data.bests[gameDiff];
   cancelAnimationFrame(raf); shown = 0; scoreEl.textContent = 0;
-  overEl.classList.remove('show');
+  gameEl.classList.remove('mp'); gameEl.classList.add('solo');
+  overEl.classList.remove('show', 'mp', 'done');
   setPalette(0);
   bestEl.textContent = best;
   drawBoard();
-  dealPieces();
+  dealSolo();
   showScreen('game');
 }
+function endSolo() {
+  over = true;
+  data.played++;
+  data.total += score;
+  data.games.push({ s: score, d: Date.now(), df: gameDiff });
+  if (data.games.length > 100) data.games = data.games.slice(-100);
+  saveData();
 
-// ---------- compartir reto ----------
-async function shareChallenge() {
-  const url = location.origin + location.pathname;
-  const text = 'Reto en Bloques: ' + currentCode + '-' + score +
-    '\nIntroduce este código en el juego y supera mis ' + score + ' puntos.\n' + url;
-  try {
-    if (navigator.share) { await navigator.share({ text }); return; }
-  } catch (e) {
-    if (e && e.name === 'AbortError') return;
+  overEl.classList.remove('mp', 'done');
+  $('overTitle').textContent = 'FIN DE PARTIDA';
+  $('overInfo').textContent = DIFFS[gameDiff].toUpperCase();
+  $('finalScore').textContent = score;
+  $('recMsg').textContent = newRecord ? '¡Nuevo récord!' : '';
+  setTimeout(() => overEl.classList.add('show'), 350);
+}
+
+// ======================================================================
+//  CLIENTE MQTT MÍNIMO (sobre WebSocket) — sin librerías externas
+// ======================================================================
+function u8cat(a, b) { const r = new Uint8Array(a.length + b.length); r.set(a, 0); r.set(b, a.length); return r; }
+function mqttLen(n) { const o = []; do { let b = n % 128; n = Math.floor(n / 128); if (n > 0) b |= 128; o.push(b); } while (n > 0); return Uint8Array.from(o); }
+function mqttStr(s) { const u = new TextEncoder().encode(s); return u8cat(Uint8Array.from([u.length >> 8, u.length & 255]), u); }
+function mqttPkt(first, body) { return u8cat(u8cat(Uint8Array.from([first]), mqttLen(body.length)), body); }
+
+class MiniMQTT {
+  constructor(url, clientId, topic) {
+    this.url = url; this.clientId = clientId; this.topic = topic;
+    this.ws = null; this.buf = new Uint8Array(0); this.closed = false; this.connected = false;
+    this.pingT = null; this.retryT = null; this.pid = 1;
+    this.onconnect = null; this.ondisconnect = null; this.onmessage = null;
   }
-  try {
-    await navigator.clipboard.writeText(text);
-    alert('Copiado. Pégalo en WhatsApp.');
-  } catch (e) {
-    prompt('Copia este texto:', text);
+  start() { this.closed = false; this._connect(); }
+  _connect() {
+    clearTimeout(this.retryT);
+    if (this.closed) return;
+    let ws;
+    try { ws = new WebSocket(this.url, 'mqtt'); } catch (e) { this._lost(); return; }
+    ws.binaryType = 'arraybuffer';
+    this.ws = ws; this.buf = new Uint8Array(0);
+    ws.onopen = () => {
+      if (this.ws !== ws) return;
+      const body = u8cat(u8cat(u8cat(mqttStr('MQTT'), Uint8Array.from([4, 2, 0, 45])), mqttStr(this.clientId)), new Uint8Array(0));
+      this._send(mqttPkt(0x10, body));
+    };
+    ws.onmessage = ev => { if (this.ws === ws) this._data(new Uint8Array(ev.data)); };
+    ws.onerror = () => {};
+    ws.onclose = () => { if (this.ws === ws) this._lost(); };
+  }
+  _lost() {
+    const was = this.connected;
+    this.connected = false;
+    clearInterval(this.pingT);
+    if (was || true) { if (this.ondisconnect) this.ondisconnect(); }
+    if (!this.closed) this.retryT = setTimeout(() => this._connect(), 2000);
+  }
+  _send(u8) { try { if (this.ws && this.ws.readyState === 1) { this.ws.send(u8); return true; } } catch (e) {} return false; }
+  _data(chunk) {
+    this.buf = u8cat(this.buf, chunk);
+    for (;;) {
+      const b = this.buf;
+      if (b.length < 2) return;
+      let mult = 1, len = 0, i = 1, x;
+      do { if (i >= b.length) return; x = b[i++]; len += (x & 127) * mult; mult *= 128; } while ((x & 128) && i < 5);
+      if (b.length < i + len) return;
+      const type = b[0] >> 4, flags = b[0] & 15;
+      const body = b.slice(i, i + len);
+      this.buf = b.slice(i + len);
+      this._packet(type, flags, body);
+    }
+  }
+  _packet(type, flags, body) {
+    if (type === 2) {                                   // CONNACK
+      if (body[1] !== 0) { this._send(Uint8Array.from([0xE0, 0])); return; }
+      const sub = u8cat(u8cat(Uint8Array.from([this.pid >> 8, this.pid & 255]), mqttStr(this.topic)), Uint8Array.from([0]));
+      this.pid = (this.pid % 65000) + 1;
+      this._send(mqttPkt(0x82, sub));
+      clearInterval(this.pingT);
+      this.pingT = setInterval(() => this._send(Uint8Array.from([0xC0, 0])), 20000);
+    } else if (type === 9) {                            // SUBACK
+      this.connected = true;
+      if (this.onconnect) this.onconnect();
+    } else if (type === 3) {                            // PUBLISH
+      const qos = (flags >> 1) & 3;
+      const tl = (body[0] << 8) | body[1];
+      let pos = 2 + tl;
+      const topic = new TextDecoder().decode(body.subarray(2, 2 + tl));
+      if (qos > 0) { const id = body.subarray(pos, pos + 2); pos += 2; if (qos === 1) this._send(Uint8Array.from([0x40, 2, id[0], id[1]])); }
+      if (this.onmessage) this.onmessage(topic, new TextDecoder().decode(body.subarray(pos)));
+    }
+  }
+  publish(text) {
+    if (!this.connected) return false;
+    return this._send(mqttPkt(0x30, u8cat(mqttStr(this.topic), new TextEncoder().encode(text))));
+  }
+  ensure() {
+    if (this.closed) return;
+    if (!this.ws || this.ws.readyState > 1) this._connect();
+  }
+  end() {
+    this.closed = true; this.connected = false;
+    clearTimeout(this.retryT); clearInterval(this.pingT);
+    const ws = this.ws; this.ws = null;
+    try { if (ws) { ws.onclose = null; ws.onmessage = null; if (ws.readyState === 1) ws.send(Uint8Array.from([0xE0, 0])); ws.close(); } } catch (e) {}
   }
 }
 
-// ---------- introducir código ----------
-function openJoin() {
-  $('codeInput').value = '';
-  $('joinErr').textContent = '';
-  showScreen('join');
+// ======================================================================
+//  JUGAR JUNTOS (salas)
+// ======================================================================
+// Servidores públicos gratuitos de mensajes (MQTT sobre WebSocket seguro). Se prueban por orden.
+const MP_BROKERS = [
+  'wss://broker.hivemq.com:8884/mqtt',
+  'wss://broker.emqx.io:8084/mqtt',
+  'wss://test.mosquitto.org:8081'
+];
+const MP_PREFIX = 'bloques-pwa/v1/', MP_MAX = 4, STALE_MS = 8000;
+
+const MP = {
+  tok: 0, room: null, id: null, name: '', host: false, diff: 'N', client: null, online: false,
+  phase: 'idle',          // idle | lobby | playing | ended
+  gid: null, lastGid: null, roster: [], peers: {}, hist: [], overAt: null, drops: [],
+  waitFor: [], saved: false, t0: 0, tick: null, tick2: null
+};
+const nowMs = () => Date.now();
+const fresh = p => !!p && nowMs() - p.seen < STALE_MS;
+const ID_RE = /^[a-z0-9]{6}$/;
+
+function cleanName(s) { return String(s || '').replace(/[\u0000-\u001f<>&"']/g, '').trim().slice(0, 14); }
+function randId() { let s = ''; for (let i = 0; i < 6; i++) s += 'abcdefghjkmnpqrstuvwxyz23456789'[Math.floor(Math.random() * 31)]; return s; }
+function randRoom() { let s = ''; for (let i = 0; i < 5; i++) s += ALPHABET[Math.floor(Math.random() * ALPHABET.length)]; return s; }
+
+// Tablero <-> texto (8 filas x 2 caracteres hexadecimales)
+function encodeBoard(g) {
+  let s = '';
+  for (let r = 0; r < SIZE; r++) { let b = 0; for (let c = 0; c < SIZE; c++) if (g[r][c]) b |= (1 << c); s += b.toString(16).padStart(2, '0'); }
+  return s;
 }
-function submitJoin() {
-  const parsed = parseCode($('codeInput').value);
-  if (!parsed) {
-    $('joinErr').textContent = 'Código no válido. Ejemplo: K7X2 o K7X2-340';
+function decodeBoard(hex) {
+  const f = new Uint8Array(SIZE * SIZE);
+  for (let r = 0; r < SIZE; r++) { const b = parseInt(hex.substr(r * 2, 2), 16) || 0; for (let c = 0; c < SIZE; c++) f[r * SIZE + c] = (b >> c) & 1; }
+  return f;
+}
+const splitHex = s => (s.match(/.{16}/g) || []);
+
+function mpTimersStop() { clearInterval(MP.tick); clearInterval(MP.tick2); MP.tick = MP.tick2 = null; }
+function mpReset() {
+  mpTimersStop();
+  if (MP.client) { try { MP.client.end(); } catch (e) {} }
+  Object.assign(MP, {
+    tok: MP.tok + 1, room: null, host: false, client: null, online: false, phase: 'idle', gid: null, lastGid: null,
+    roster: [], peers: {}, hist: [], overAt: null, drops: [], waitFor: [], saved: false
+  });
+}
+
+// ---- mensajes ----
+function mpMsg(leaving) {
+  const ph = leaving ? 'x' : ({ lobby: 'l', playing: 'p', ended: 'e' }[MP.phase] || 'l');
+  const m = { v: 1, id: MP.id, n: MP.name, h: MP.host ? 1 : 0, ph, g: MP.gid, d: MP.diff, s: score, k: MP.hist.join(''), o: MP.overAt, x: MP.drops };
+  if (MP.host && (MP.phase === 'playing' || MP.phase === 'ended')) m.r = MP.roster;
+  return JSON.stringify(m);
+}
+function mpSend(leaving) {
+  if (!MP.client || !MP.online || MP.phase === 'idle') return;
+  MP.client.publish(mpMsg(leaving));
+}
+function cleanMsg(m) {
+  if (!m || m.v !== 1 || typeof m.id !== 'string' || !ID_RE.test(m.id)) return null;
+  const out = { id: m.id, n: cleanName(m.n) || 'Jugador', h: m.h ? 1 : 0, ph: ['l', 'p', 'e', 'x'].includes(m.ph) ? m.ph : 'l',
+    g: (typeof m.g === 'string' && /^[a-z0-9]{1,8}$/.test(m.g)) ? m.g : null,
+    d: ['F', 'N', 'D'].includes(m.d) ? m.d : null,
+    s: Number.isFinite(m.s) ? Math.max(0, Math.min(10000000, m.s | 0)) : 0,
+    k: (typeof m.k === 'string' && m.k.length <= 16 * 600 && m.k.length % 16 === 0 && /^[0-9a-f]*$/.test(m.k)) ? m.k : '',
+    o: Number.isInteger(m.o) && m.o >= 0 ? m.o : null,
+    x: Array.isArray(m.x) ? m.x.filter(i => typeof i === 'string' && ID_RE.test(i)).slice(0, 8) : [],
+    r: null };
+  if (Array.isArray(m.r)) out.r = m.r.slice(0, MP_MAX).filter(e => Array.isArray(e) && ID_RE.test(e[0])).map(e => [e[0], cleanName(e[1]) || 'Jugador']);
+  return out;
+}
+function mpOnMessage(topic, text) {
+  let m; try { m = cleanMsg(JSON.parse(text)); } catch (e) { return; }
+  if (!m || m.id === MP.id || MP.phase === 'idle') return;
+  const p = MP.peers[m.id] || (MP.peers[m.id] = { first: nowMs(), gs: null });
+  p.name = m.n; p.host = !!m.h; p.ph = m.ph; p.g = m.g; p.seen = nowMs();
+  if (m.h && m.d) MP.diff = m.d;
+  if ((MP.phase === 'playing' || MP.phase === 'ended') && m.g && m.g === MP.gid) {
+    p.gs = { s: m.s, hist: splitHex(m.k), overAt: m.o, drops: m.x };
+  }
+
+  if (MP.phase === 'lobby') {
+    if (!MP.host && m.h && m.ph === 'x') { mpLeave('El anfitrión ha cerrado la sala.'); return; }
+    if (!MP.host && m.h && m.ph === 'p' && m.g && m.g !== MP.lastGid) {
+      if (m.r && m.r.some(e => e[0] === MP.id)) {
+        MP.gid = m.g; MP.roster = m.r; MP.phase = 'playing';
+        startMpGame(); mpSend();
+      } else { mpLeave('La partida ya había empezado.'); }
+      return;
+    }
+    mpRender();
+  } else if (MP.phase === 'playing') {
+    if (allDrops().includes(MP.id) && !over) mpMyOver();
+    mpRenderScores(); mpTryDeal(); mpCheckFinish(); mpRender();
+  } else if (MP.phase === 'ended') { mpRender(); }
+}
+
+// ---- conexión ----
+function openBroker(url) {
+  return new Promise(resolve => {
+    const c = new MiniMQTT(url, 'bl_' + MP.id + Math.random().toString(36).slice(2, 6), MP_PREFIX + MP.room);
+    let done = false, t = null;
+    const fin = ok => { if (done) return; done = true; clearTimeout(t); if (ok) resolve(c); else { c.end(); resolve(null); } };
+    c.onconnect = () => { if (!done) fin(true); else { MP.online = true; mpSend(); mpRender(); } };
+    c.ondisconnect = () => { if (!done) fin(false); else { MP.online = false; mpRender(); } };
+    c.onmessage = mpOnMessage;
+    t = setTimeout(() => fin(false), 6000);
+    c.start();
+  });
+}
+function waitUntil(fn, ms) {
+  return new Promise(res => { const t0 = nowMs(); (function poll() { if (fn()) return res(true); if (nowMs() - t0 > ms) return res(false); setTimeout(poll, 100); })(); });
+}
+function mpStartTimers() {
+  mpTimersStop();
+  MP.tick = setInterval(() => mpSend(), 2000);
+  MP.tick2 = setInterval(() => mpRender(), 1000);
+}
+function hostPeer() { return Object.values(MP.peers).find(p => p.host && fresh(p) && p.ph !== 'x'); }
+
+function mpBegin(room, host) {
+  mpReset();
+  MP.id = randId(); MP.room = room; MP.host = host; MP.name = data.name; MP.diff = data.diff;
+  MP.phase = 'lobby'; MP.t0 = nowMs(); MP.peers = {};
+  return MP.tok;
+}
+function mpFail(msg, screen) {
+  mpReset();
+  $(screen === 'join' ? 'joinErr' : 'togetherErr').textContent = msg;
+  showScreen(screen);
+}
+function mpLeave(msg) {                       // salir de la sala (o de la partida) y volver al menú de juntos
+  const wasPlaying = MP.phase === 'playing' || MP.phase === 'ended';
+  if (MP.client && MP.online) { if (wasPlaying && !over) { over = true; MP.overAt = dealN; } mpSend(true); }
+  gameTok++;
+  const c = MP.client;
+  setTimeout(() => { try { c && c.end(); } catch (e) {} }, 250);
+  MP.client = null;
+  mpReset();
+  overEl.classList.remove('show', 'mp', 'done');
+  gameEl.classList.remove('mp'); gameEl.classList.add('solo');
+  mode = 'solo'; over = true;
+  $('togetherErr').textContent = msg || '';
+  showScreen('together');
+}
+
+async function mpCreate() {
+  const tok = mpBegin(randRoom(), true);
+  renderRoom('Conectando…');
+  showScreen('room');
+  let c = null;
+  for (const url of MP_BROKERS) { c = await openBroker(url); if (MP.tok !== tok) { c && c.end(); return; } if (c) break; }
+  if (!c) { mpFail('No se ha podido conectar. Comprueba tu conexión a internet.', 'together'); return; }
+  MP.client = c; MP.online = true;
+  mpSend(); mpStartTimers(); renderRoom();
+}
+async function mpJoin(code) {
+  const tok = mpBegin(code, false);
+  renderRoom('Buscando la sala…');
+  showScreen('room');
+  let found = false, anyConn = false;
+  for (const url of MP_BROKERS) {
+    const c = await openBroker(url);
+    if (MP.tok !== tok) { c && c.end(); return; }
+    if (!c) continue;
+    anyConn = true;
+    MP.client = c; MP.online = true; mpSend();
+    const ok = await waitUntil(() => hostPeer() || MP.tok !== tok, 3500);
+    if (MP.tok !== tok) { c.end(); return; }
+    if (ok) { found = true; break; }
+    c.end(); MP.client = null; MP.online = false;
+  }
+  if (!found) {
+    mpFail(anyConn ? 'No se encuentra esa sala. Revisa el código.' : 'No se ha podido conectar. Comprueba tu conexión a internet.', anyConn ? 'join' : 'together');
     return;
   }
-  newGame(parsed.code, parsed.target);
+  if (MP.phase !== 'lobby') return;          // la partida ya ha empezado (o nos han sacado)
+  const inLobby = Object.values(MP.peers).filter(p => p.ph === 'l' && fresh(p)).length;
+  if (inLobby >= MP_MAX) { mpFail('La sala está llena.', 'join'); return; }
+  mpStartTimers(); renderRoom();
 }
+
+// ---- sala ----
+function lobbyPlayers() {
+  const list = [{ id: MP.id, name: MP.name, host: MP.host, first: MP.t0 }];
+  for (const [id, p] of Object.entries(MP.peers)) if (p.ph === 'l' && fresh(p)) list.push({ id, name: p.name, host: p.host, first: p.first });
+  list.sort((a, b) => (b.host - a.host) || (a.first - b.first));
+  return list;
+}
+function renderRoom(msgOverride) {
+  if (!$('room').classList.contains('active') && !msgOverride) return;
+  $('roomCode').textContent = MP.room || '-----';
+  $('roomDiff').textContent = 'DIFICULTAD ' + DIFFS[MP.diff].toUpperCase();
+  const lp = lobbyPlayers();
+  $('plist').innerHTML = lp.map(p =>
+    '<div class="pl"><span>' + esc(p.name) + '</span><small>' + (p.host ? 'ANFITRIÓN' : '') + (p.id === MP.id ? (p.host ? ' · TÚ' : 'TÚ') : '') + '</small></div>').join('');
+  let msg = msgOverride || '';
+  if (!msg) {
+    if (!MP.online) msg = 'Sin conexión… reconectando';
+    else if (MP.host) msg = lp.length < 2 ? 'Pasa este código a quien quieras que juegue contigo' : 'Cuando estéis todos, pulsa Jugar';
+    else msg = 'Esperando a que el anfitrión empiece…';
+  }
+  $('roomMsg').textContent = msg;
+  $('btnStart').style.display = MP.host ? '' : 'none';
+  $('btnStart').disabled = !(MP.host && MP.online && lp.length >= 2 && MP.phase === 'lobby');
+  $('btnShareCode').style.display = MP.room ? '' : 'none';
+}
+function mpStart() {
+  const lp = lobbyPlayers();
+  if (lp.length < 2 || MP.phase !== 'lobby') return;
+  MP.gid = Math.random().toString(36).slice(2, 8);
+  MP.roster = lp.map(p => [p.id, p.name]);
+  MP.phase = 'playing';
+  startMpGame();
+  mpSend(); setTimeout(mpSend, 300); setTimeout(mpSend, 900);
+}
+async function shareCode() {
+  const url = location.origin + location.pathname;
+  const text = 'Juguem junts a Bloques. Código de sala: ' + MP.room + '\n' + url;
+  try { if (navigator.share) { await navigator.share({ text }); return; } } catch (e) { if (e && e.name === 'AbortError') return; }
+  try { await navigator.clipboard.writeText(text); alert('Copiado. Pégalo en WhatsApp.'); } catch (e) { prompt('Copia este texto:', text); }
+}
+
+// ---- partida conjunta ----
+const emptyFlat = () => new Uint8Array(SIZE * SIZE);
+function allDrops() {
+  const s = new Set(MP.drops);
+  for (const p of Object.values(MP.peers)) if (p.gs) p.gs.drops.forEach(i => s.add(i));
+  return [...s];
+}
+const isDropped = id => allDrops().includes(id);
+function peerName(id) { const e = MP.roster.find(r => r[0] === id); return (MP.peers[id] && MP.peers[id].name) || (e && e[1]) || 'Jugador'; }
+
+function startMpGame() {
+  gameTok++;
+  mode = 'mp';
+  gameDiff = MP.diff;
+  dealN = 0; pieces = null;
+  grid = emptyGrid();
+  score = 0; locked = false; over = false; newRecord = false;
+  MP.hist = []; MP.overAt = null; MP.drops = []; MP.saved = false; MP.waitFor = [];
+  Object.values(MP.peers).forEach(p => { p.gs = null; });
+  cancelAnimationFrame(raf);
+  gameEl.classList.remove('solo'); gameEl.classList.add('mp');
+  overEl.classList.remove('show', 'mp', 'done');
+  setPalette(0);
+  drawBoard(); drawTray();
+  mpRenderScores(); mpRender();
+  showScreen('game');
+  mpTryDeal();
+}
+// Estado de cada jugador para la tanda n: ok (con su tablero), necesito (aún no llega), o fuera
+function qState(id, n) {
+  if (isDropped(id)) return { st: 'skip' };
+  if (id === MP.id) return { st: 'ok', b: n === 0 ? emptyFlat() : decodeBoard(MP.hist[n - 1]) };
+  const g = MP.peers[id] && MP.peers[id].gs;
+  if (g && g.overAt !== null && n > g.overAt) return { st: 'skip' };
+  if (n === 0) return { st: 'ok', b: emptyFlat() };
+  if (!g || g.hist.length < n) return { st: 'need' };
+  return { st: 'ok', b: decodeBoard(g.hist[n - 1]) };
+}
+function mpTryDeal() {
+  if (mode !== 'mp' || MP.phase !== 'playing' || over || pieces) return;
+  const n = dealN, boards = [], need = [];
+  for (const [id] of MP.roster) {
+    const r = qState(id, n);
+    if (r.st === 'ok') boards.push(r.b); else if (r.st === 'need') need.push(id);
+  }
+  MP.waitFor = need;
+  if (need.length) { mpRender(); return; }
+  pieces = genDeal(MP.room + '|' + MP.gid, n, boards);
+  drawTray();
+  mpRender();
+  if (!anyMoveLeft()) mpMyOver();
+}
+function mpAfterMove() {
+  if (pieces.every(p => p === null)) {
+    MP.hist.push(encodeBoard(grid));
+    dealN++;
+    pieces = null;
+    drawTray(); updateScore(); mpSend(); mpTryDeal();
+    return;
+  }
+  drawTray(); updateScore(); mpSend();
+  if (!anyMoveLeft()) mpMyOver();
+}
+function mpMyOver() {
+  if (over) return;
+  over = true; MP.overAt = dealN;
+  mpSend(); mpRenderScores(); mpCheckFinish(); mpRender();
+}
+function mpCheckFinish() {
+  if (MP.phase !== 'playing' || !over) return;
+  for (const [id] of MP.roster) {
+    if (id === MP.id || isDropped(id)) continue;
+    const g = MP.peers[id] && MP.peers[id].gs;
+    if (!(g && g.overAt !== null)) return;
+  }
+  mpFinish();
+}
+function mpResults() {
+  const rows = MP.roster.map(([id]) => {
+    const g = MP.peers[id] && MP.peers[id].gs;
+    const isMe = id === MP.id;
+    const done = isMe ? over : (isDropped(id) || (g && g.overAt !== null));
+    return { id, name: isMe ? MP.name : peerName(id), score: isMe ? score : (g ? g.s : 0), me: isMe, done: !!done };
+  });
+  return rows;
+}
+function mpFinish() {
+  MP.phase = 'ended';
+  const rows = mpResults();
+  const top = Math.max(...rows.map(r => r.score));
+  const winners = rows.filter(r => r.score === top);
+  if (!MP.saved) {
+    MP.saved = true;
+    const others = rows.filter(r => !r.me).map(r => r.name);
+    const w = winners.length > 1 ? (winners.some(r => r.me) ? 2 : 0) : (winners[0].me ? 1 : 0);
+    data.games.push({ s: score, d: Date.now(), df: gameDiff, mp: { n: others, w } });
+    if (data.games.length > 100) data.games = data.games.slice(-100);
+    saveData();
+  }
+  mpSend(); setTimeout(mpSend, 400);
+  mpRender();
+}
+
+// ---- pintar estado de la partida conjunta ----
+function mpRenderScores() {
+  if (mode !== 'mp') return;
+  const rows = mpResults();
+  const el = $('mpScores');
+  el.className = rows.length >= 4 ? 'n4' : rows.length === 3 ? 'n3' : '';
+  el.innerHTML = rows.map(r =>
+    '<div class="' + (r.me ? 'me ' : '') + (r.done ? 'out' : '') + '"><span>' + esc(r.name) + '</span><b>' + r.score + '</b></div>').join('');
+}
+function mpRender() {
+  if ($('room').classList.contains('active')) renderRoom();
+  if (mode !== 'mp' || (MP.phase !== 'playing' && MP.phase !== 'ended')) return;
+  // estado y espera
+  let text = '';
+  const staleWait = [];
+  if (!MP.online) text = 'Sin conexión… reconectando';
+  else if (!pieces && !over && MP.waitFor.length) {
+    const names = MP.waitFor.map(id => peerName(id));
+    text = 'Esperando a ' + names.join(', ') + '…';
+    MP.waitFor.forEach(id => { const p = MP.peers[id]; if (!p || !fresh(p)) staleWait.push(id); });
+  }
+  $('mpStatusText').textContent = text;
+  const bd = $('btnDrop');
+  if (staleWait.length) { bd.style.display = 'block'; bd.textContent = 'No esperar a ' + peerName(staleWait[0]); bd.dataset.id = staleWait[0]; }
+  else bd.style.display = 'none';
+  mpRenderScores();
+  // resultados
+  if (over) {
+    const rows = mpResults().sort((a, b) => b.score - a.score);
+    const ended = MP.phase === 'ended';
+    const top = rows.length ? rows[0].score : 0;
+    const winners = rows.filter(r => r.score === top);
+    overEl.classList.add('mp'); overEl.classList.toggle('done', ended);
+    $('overTitle').textContent = ended ? 'FIN DE PARTIDA' : 'HAS TERMINADO';
+    $('overInfo').textContent = 'JUGUEM JUNTS  ·  ' + DIFFS[gameDiff].toUpperCase();
+    $('overList').innerHTML = rows.map(r => {
+      let tag = '';
+      if (ended) { if (winners.length === 1 && r.score === top) tag = '<span class="tagw w">GANADOR</span>'; else if (winners.length > 1 && r.score === top) tag = '<span class="tagw t">EMPATE</span>'; }
+      else tag = '<span class="tagw ' + (r.done ? 'l' : 't') + '">' + (r.done ? 'TERMINÓ' : 'JUGANDO') + '</span>';
+      return '<div class="orow' + (ended && r.score === top ? ' top' : '') + '"><div class="nm"><span>' + esc(r.name) + (r.me ? ' (tú)' : '') + '</span>' + tag + '</div><b>' + r.score + '</b></div>';
+    }).join('');
+    $('recMsg').textContent = ended
+      ? (winners.length > 1 ? 'Empate' : (winners[0].me ? '¡Has ganado!' : 'Gana ' + winners[0].name))
+      : 'Esperando a que terminen los demás…';
+    overEl.classList.add('show');
+  }
+}
+function mpBackToRoom() {
+  MP.lastGid = MP.gid; MP.gid = null; MP.phase = 'lobby';
+  MP.hist = []; MP.overAt = null; MP.drops = []; MP.saved = false; MP.waitFor = [];
+  Object.values(MP.peers).forEach(p => { p.gs = null; });
+  gameTok++; mode = 'solo'; over = true; score = 0;
+  overEl.classList.remove('show', 'mp', 'done');
+  gameEl.classList.remove('mp'); gameEl.classList.add('solo');
+  showScreen('room');
+  mpSend(); renderRoom();
+}
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && MP.client) { MP.client.ensure(); mpSend(); }
+});
 
 // ---------- récords ----------
 function fmtDate(ms) {
   return new Date(ms).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
 }
+function legacyDiff(g) { return (g.c && g.c.length === 5 && 'FD'.includes(g.c[4])) ? g.c[4] : 'N'; }
 function rowHTML(g) {
-  const tag = g.w === 1 ? '<span class="tagw w">GANADA</span>'
-            : g.w === 0 ? '<span class="tagw l">PERDIDA</span>'
-            : g.w === 2 ? '<span class="tagw t">EMPATE</span>' : '';
-  return '<div class="row"><div class="rc"><b>' + g.c + '</b><span>' + fmtDate(g.d) + ' · ' + DIFFS[diffOf(g.c)] +
+  const df = g.df || legacyDiff(g);
+  const title = g.mp ? 'con ' + (g.mp.n.length ? g.mp.n.map(esc).join(', ') : 'otros') : 'Solo';
+  const tag = !g.mp ? '' : g.mp.w === 1 ? '<span class="tagw w">GANADA</span>' : g.mp.w === 0 ? '<span class="tagw l">PERDIDA</span>' : '<span class="tagw t">EMPATE</span>';
+  return '<div class="row"><div class="rc"><b>' + title + '</b><span>' + fmtDate(g.d) + ' · ' + DIFFS[df] +
          '</span></div><div class="rs">' + tag + '<b>' + g.s + '</b></div></div>';
 }
 function renderRecords() {
   const avg = data.played ? Math.round(data.total / data.played) : 0;
-  const top = data.games.slice().sort((a, b) => b.s - a.s).slice(0, 5);
+  const top = data.games.filter(g => !g.mp).sort((a, b) => b.s - a.s).slice(0, 5);
   $('paneP').innerHTML =
     '<div class="stats">' +
       '<div><b>' + data.bests.F + '</b><span>FÁCIL</span></div>' +
       '<div><b>' + data.bests.N + '</b><span>NORMAL</span></div>' +
       '<div><b>' + data.bests.D + '</b><span>DIFÍCIL</span></div></div>' +
     '<div class="stats last">' +
-      '<div><b>' + data.played + '</b><span>PARTIDAS</span></div>' +
+      '<div><b>' + data.played + '</b><span>PARTIDAS SOLO</span></div>' +
       '<div><b>' + avg + '</b><span>MEDIA</span></div></div>' +
     '<h3>MEJORES PARTIDAS</h3>' +
     (top.length ? top.map(rowHTML).join('') : '<p class="empty">Aún no hay partidas</p>');
@@ -779,35 +1283,70 @@ document.querySelectorAll('#diffSeg button').forEach(b => b.addEventListener('cl
 }));
 
 // ---------- botones ----------
-$('btnTheme').addEventListener('click', () => {
-  data.theme = isDark() ? 'light' : 'dark';
-  saveData();
-  applyTheme();
+function readName() {
+  const n = cleanName($('nameInput').value);
+  if (!n) { $('togetherErr').textContent = 'Escribe tu nombre para jugar juntos.'; $('nameInput').focus(); return null; }
+  data.name = n; saveData();
+  return n;
+}
+$('btnTheme').addEventListener('click', () => { data.theme = isDark() ? 'light' : 'dark'; saveData(); applyTheme(); });
+$('btnPlay').addEventListener('click', newSolo);
+$('btnTogether').addEventListener('click', () => {
+  $('nameInput').value = data.name || '';
+  $('togetherErr').textContent = '';
+  $('togetherDiff').textContent = 'DIFICULTAD DE LA SALA: ' + DIFFS[data.diff].toUpperCase() + ' (se cambia en el menú)';
+  showScreen('together');
 });
-$('btnPlay').addEventListener('click', () => newGame());
-$('btnJoin').addEventListener('click', openJoin);
-$('btnRecords').addEventListener('click', () => { renderRecords(); showScreen('records'); });
+$('btnGen').addEventListener('click', () => { if (readName()) mpCreate(); });
+$('btnEnter').addEventListener('click', () => {
+  if (!readName()) return;
+  $('codeInput').value = ''; $('joinErr').textContent = '';
+  showScreen('join');
+});
+function submitJoin() {
+  const code = $('codeInput').value.trim().toUpperCase().replace(/\s+/g, '');
+  if (!/^[A-Z0-9]{5}$/.test(code)) { $('joinErr').textContent = 'El código tiene 5 letras o números.'; return; }
+  $('joinErr').textContent = '';
+  mpJoin(code);
+}
 $('btnGo').addEventListener('click', submitJoin);
 $('codeInput').addEventListener('keydown', e => { if (e.key === 'Enter') submitJoin(); });
+$('nameInput').addEventListener('keydown', e => { if (e.key === 'Enter') $('btnGen').click(); });
+$('btnStart').addEventListener('click', mpStart);
+$('btnShareCode').addEventListener('click', shareCode);
+$('roomBack').addEventListener('click', () => mpLeave(''));
+$('btnDrop').addEventListener('click', () => {
+  const id = $('btnDrop').dataset.id;
+  if (id && !MP.drops.includes(id)) { MP.drops.push(id); mpSend(); mpTryDeal(); mpCheckFinish(); mpRender(); }
+});
+$('btnRecords').addEventListener('click', () => { renderRecords(); showScreen('records'); });
 document.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', () => showScreen(b.dataset.go)));
 $('gameBack').addEventListener('click', () => {
+  if (mode === 'mp') {
+    if (MP.phase !== 'ended' && !confirm('¿Salir de la partida? Los demás podrán seguir sin ti.')) return;
+    mpLeave('');
+    return;
+  }
   if (!over && score > 0 && !confirm('¿Salir al menú? Perderás la partida actual.')) return;
+  gameTok++;
   showScreen('home');
 });
-$('btnShare').addEventListener('click', shareChallenge);
-$('btnAgain').addEventListener('click', () => newGame());
-$('btnRepeat').addEventListener('click', () => newGame(currentCode, targetScore));
-$('btnMenu').addEventListener('click', () => showScreen('home'));
+$('btnAgain').addEventListener('click', newSolo);
+$('btnAgainMp').addEventListener('click', mpBackToRoom);
+$('btnMenu').addEventListener('click', () => {
+  if (mode === 'mp') { mpLeave(''); showScreen('home'); return; }
+  gameTok++; showScreen('home');
+});
 $('btnReset').addEventListener('click', () => {
   if (!confirm('¿Borrar todos tus récords y el historial de partidas?')) return;
-  data = { bests: { F: 0, N: 0, D: 0 }, played: 0, total: 0, games: [], diff: data.diff, theme: data.theme };
+  data = { bests: { F: 0, N: 0, D: 0 }, played: 0, total: 0, games: [], diff: data.diff, theme: data.theme, name: data.name };
   saveData();
   renderRecords();
 });
 
 // ---------- arrastrar y soltar ----------
 function startDrag(e, idx, slot) {
-  if (locked || over) return;
+  if (locked || over || !pieces || !pieces[idx]) return;
   e.preventDefault();
   const shape = pieces[idx];
   const cs = cellSize(), step = cs + GAP;
@@ -845,7 +1384,7 @@ function startDrag(e, idx, slot) {
     window.removeEventListener('pointerup', end);
     window.removeEventListener('pointercancel', end);
     ghost.remove();
-    if (target) {
+    if (target && pieces && pieces[idx] === shape && !over) {
       finishPlacement(shape, target.row, target.col, idx);
     } else {
       slot.classList.remove('dragging');
@@ -858,9 +1397,9 @@ function startDrag(e, idx, slot) {
   move(e);
 }
 
-// Inicio: se prepara un tablero vacío de fondo, pero se muestra el menú
-grid = Array.from({ length: SIZE }, () => Array(SIZE).fill(0));
-pieces = [null, null, null]; score = 0; best = data.bests.N; locked = false; over = true;
+// Inicio: tablero vacío de fondo y menú
+grid = emptyGrid();
+pieces = null; score = 0; best = data.bests.N; locked = false; over = true;
 drawDiff();
 applyTheme();
 showScreen('home');
