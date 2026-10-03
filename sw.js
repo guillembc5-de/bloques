@@ -1,7 +1,7 @@
 // Service worker de Bloques: guarda el juego en el móvil para que funcione sin internet.
 // Estrategia: se sirve siempre lo guardado (rápido, funciona sin cobertura) y, si hay
 // conexión, se actualiza en segundo plano. La versión nueva aparece al abrir la app la vez siguiente.
-const CACHE = 'bloques-v8';
+const CACHE = 'bloques-v9';
 const FILES = ['./', 'index.html', 'manifest.webmanifest', 'apple-touch-icon.png', 'icon-512.png'];
 
 self.addEventListener('install', e => {

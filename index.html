@@ -148,6 +148,8 @@
   }
   #mpScores b { font-size: 34px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.1; }
   #mpScores .me span { color: var(--block); opacity: 1; }
+  #mpScores em { font-style: normal; font-size: 17px; line-height: 17px; height: 17px; visibility: hidden; }
+  #mpScores .lead em { visibility: visible; }
   #mpScores .out b { opacity: .4; }
   #mpScores.n3 { gap: 20px; } #mpScores.n3 b { font-size: 28px; } #mpScores.n3 span { max-width: 84px; }
   #mpScores.n4 { gap: 12px; } #mpScores.n4 b { font-size: 24px; } #mpScores.n4 span { max-width: 66px; font-size: 10px; }
@@ -155,7 +157,7 @@
   #game.mp #scores { display: none; }
   #game.mp #mpScores { display: flex; }
   #game.mp #mpStatus { display: flex; }
-  #btnDrop { display: none; background: none; border: 0; color: var(--block); font-size: 13px; font-weight: 600; padding: 4px 8px; }
+  #btnDrop { display: none; width: auto; margin-top: 0; font-size: 14px; }
   #boardWrap { position: relative; width: min(92vw, 380px); width: min(92vw, 380px, 50dvh); }
   #board {
     display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; width: 100%; aspect-ratio: 1;
@@ -276,7 +278,7 @@
       <div><span>RÉCORD</span><b id="best">0</b></div>
     </div>
     <div id="mpScores"></div>
-    <div id="mpStatus"><span id="mpStatusText"></span><button id="btnDrop"></button></div>
+    <div id="mpStatus"><span id="mpStatusText"></span></div>
     <div id="boardWrap"><div id="board"></div></div>
     <div id="tray"></div>
 
@@ -286,6 +288,7 @@
       <div id="finalScore">0</div>
       <div id="overList"></div>
       <div class="msg" id="recMsg"></div>
+      <button class="btn ghost" id="btnDrop"></button>
       <div class="sp"></div>
       <button class="btn" id="btnAgain">Nueva partida</button>
       <button class="btn" id="btnAgainMp">Volver a la sala</button>
@@ -862,9 +865,14 @@ const MP_PREFIX = 'bloques-pwa/v1/', MP_MAX = 4, STALE_MS = 8000;
 const MP = {
   tok: 0, room: null, id: null, name: '', host: false, diff: 'N', client: null, online: false,
   phase: 'idle',          // idle | lobby | playing | ended
-  gid: null, lastGid: null, roster: [], peers: {}, hist: [], overAt: null, drops: [],
-  waitFor: [], saved: false, t0: 0, tick: null, tick2: null
+  gid: null, lastGid: null, roster: [], peers: {}, drops: [], claims: {}, firstSeen: {}, settled: {},
+  rescue: false, gt0: 0, msgText: '', msgUntil: 0, saved: false, t0: 0, tick: null, tick2: null
 };
+const MILESTONE = 300, CONFIRM_MS = 1200, COMMON_DEALS = 4;     // 4 tandas x 3 = las 12 primeras piezas iguales
+const REWARDS = [
+  ['clear', 'Tablero limpio'], ['pts100', '+100 puntos'], ['half', 'Media limpieza'],
+  ['rescue', 'Piezas de rescate'], ['pts50', '+50 puntos']
+];
 const nowMs = () => Date.now();
 const fresh = p => !!p && nowMs() - p.seen < STALE_MS;
 const ID_RE = /^[a-z0-9]{6}$/;
@@ -892,14 +900,15 @@ function mpReset() {
   if (MP.client) { try { MP.client.end(); } catch (e) {} }
   Object.assign(MP, {
     tok: MP.tok + 1, room: null, host: false, client: null, online: false, phase: 'idle', gid: null, lastGid: null,
-    roster: [], peers: {}, hist: [], overAt: null, drops: [], waitFor: [], saved: false
+    roster: [], peers: {}, drops: [], claims: {}, firstSeen: {}, settled: {}, rescue: false, msgUntil: 0, saved: false
   });
 }
 
 // ---- mensajes ----
 function mpMsg(leaving) {
   const ph = leaving ? 'x' : ({ lobby: 'l', playing: 'p', ended: 'e' }[MP.phase] || 'l');
-  const m = { v: 1, id: MP.id, n: MP.name, h: MP.host ? 1 : 0, ph, g: MP.gid, d: MP.diff, s: score, k: MP.hist.join(''), o: MP.overAt, x: MP.drops };
+  const m = { v: 1, id: MP.id, n: MP.name, h: MP.host ? 1 : 0, ph, g: MP.gid, d: MP.diff, s: score, o: over ? 1 : 0, x: MP.drops,
+    c: Object.keys(MP.claims).map(k => [+k, MP.claims[k]]) };
   if (MP.host && (MP.phase === 'playing' || MP.phase === 'ended')) m.r = MP.roster;
   return JSON.stringify(m);
 }
@@ -913,8 +922,8 @@ function cleanMsg(m) {
     g: (typeof m.g === 'string' && /^[a-z0-9]{1,8}$/.test(m.g)) ? m.g : null,
     d: ['F', 'N', 'D'].includes(m.d) ? m.d : null,
     s: Number.isFinite(m.s) ? Math.max(0, Math.min(10000000, m.s | 0)) : 0,
-    k: (typeof m.k === 'string' && m.k.length <= 16 * 600 && m.k.length % 16 === 0 && /^[0-9a-f]*$/.test(m.k)) ? m.k : '',
-    o: Number.isInteger(m.o) && m.o >= 0 ? m.o : null,
+    o: m.o ? 1 : 0,
+    c: Array.isArray(m.c) ? m.c.filter(e => Array.isArray(e) && Number.isInteger(e[0]) && e[0] > 0 && e[0] < 200 && Number.isFinite(e[1]) && e[1] >= 0).slice(0, 100).map(e => [e[0], e[1]]) : [],
     x: Array.isArray(m.x) ? m.x.filter(i => typeof i === 'string' && ID_RE.test(i)).slice(0, 8) : [],
     r: null };
   if (Array.isArray(m.r)) out.r = m.r.slice(0, MP_MAX).filter(e => Array.isArray(e) && ID_RE.test(e[0])).map(e => [e[0], cleanName(e[1]) || 'Jugador']);
@@ -927,7 +936,8 @@ function mpOnMessage(topic, text) {
   p.name = m.n; p.host = !!m.h; p.ph = m.ph; p.g = m.g; p.seen = nowMs();
   if (m.h && m.d) MP.diff = m.d;
   if ((MP.phase === 'playing' || MP.phase === 'ended') && m.g && m.g === MP.gid) {
-    p.gs = { s: m.s, hist: splitHex(m.k), overAt: m.o, drops: m.x };
+    p.gs = { s: m.s, over: !!m.o, drops: m.x, claims: m.c };
+    m.c.forEach(e => noteSeen(e[0]));
   }
 
   if (MP.phase === 'lobby') {
@@ -942,7 +952,7 @@ function mpOnMessage(topic, text) {
     mpRender();
   } else if (MP.phase === 'playing') {
     if (allDrops().includes(MP.id) && !over) mpMyOver();
-    mpRenderScores(); mpTryDeal(); mpCheckFinish(); mpRender();
+    mpSettle(); mpRenderScores(); mpCheckFinish(); mpRender();
   } else if (MP.phase === 'ended') { mpRender(); }
 }
 
@@ -965,7 +975,7 @@ function waitUntil(fn, ms) {
 function mpStartTimers() {
   mpTimersStop();
   MP.tick = setInterval(() => mpSend(), 2000);
-  MP.tick2 = setInterval(() => mpRender(), 1000);
+  MP.tick2 = setInterval(() => { mpSettle(); mpRender(); }, 1000);
 }
 function hostPeer() { return Object.values(MP.peers).find(p => p.host && fresh(p) && p.ph !== 'x'); }
 
@@ -982,7 +992,7 @@ function mpFail(msg, screen) {
 }
 function mpLeave(msg) {                       // salir de la sala (o de la partida) y volver al menú de juntos
   const wasPlaying = MP.phase === 'playing' || MP.phase === 'ended';
-  if (MP.client && MP.online) { if (wasPlaying && !over) { over = true; MP.overAt = dealN; } mpSend(true); }
+  if (MP.client && MP.online) { if (wasPlaying && !over) over = true; mpSend(true); }
   gameTok++;
   const c = MP.client;
   setTimeout(() => { try { c && c.end(); } catch (e) {} }, 250);
@@ -1082,6 +1092,46 @@ function allDrops() {
 const isDropped = id => allDrops().includes(id);
 function peerName(id) { const e = MP.roster.find(r => r[0] === id); return (MP.peers[id] && MP.peers[id].name) || (e && e[1]) || 'Jugador'; }
 
+// Cada jugador juega a su ritmo y recibe sus propias tandas.
+// Las 4 primeras tandas (12 piezas) son idénticas para todos; después cada uno recibe tandas
+// pensadas para su propio tablero, siempre colocables entera.
+const RESCUE_POOL = [0, 1, 2, 7, 13, 14, 15, 16];
+function rescueDeal(n) {
+  const seed = MP.room + '|' + MP.gid + '|' + MP.id + '|r';
+  const flat = flatBoard();
+  let best = null, bestM = -1;
+  for (let a = 0; a < MAX_ATTEMPTS; a++) {
+    const rnd = mulberry32(hashStr(seed + '#' + n + '#' + a));
+    const cand = [0, 1, 2].map(() => SHAPES[RESCUE_POOL[Math.floor(rnd() * RESCUE_POOL.length)]]);
+    const m = maxPlaceable(cand, flat);
+    if (m > bestM) { bestM = m; best = cand; }
+    if (m === 3) break;
+  }
+  return best;
+}
+// Las 12 primeras piezas son iguales para todos y sencillas, para que nadie se quede sin jugadas al principio
+const COMMON_POOL = [0, 1, 2, 3, 4, 7, 13, 14, 15, 16];
+function commonDeal(n) {
+  const seed = MP.room + '|' + MP.gid + '|c';
+  const flat = emptyFlat();
+  let best = null, bestM = -1;
+  for (let a = 0; a < MAX_ATTEMPTS; a++) {
+    const rnd = mulberry32(hashStr(seed + '#' + n + '#' + a));
+    const cand = [0, 1, 2].map(() => SHAPES[COMMON_POOL[Math.floor(rnd() * COMMON_POOL.length)]]);
+    const m = maxPlaceable(cand, flat);
+    if (m > bestM) { bestM = m; best = cand; }
+    if (m === 3) break;
+  }
+  return best;
+}
+function mpDeal() {
+  const n = dealN;
+  if (n < COMMON_DEALS) pieces = commonDeal(n);
+  else if (MP.rescue) { MP.rescue = false; pieces = rescueDeal(n); }
+  else pieces = genDeal(MP.room + '|' + MP.gid + '|' + MP.id, n, [flatBoard()]);
+  dealN++;
+  drawTray();
+}
 function startMpGame() {
   gameTok++;
   mode = 'mp';
@@ -1089,55 +1139,101 @@ function startMpGame() {
   dealN = 0; pieces = null;
   grid = emptyGrid();
   score = 0; locked = false; over = false; newRecord = false;
-  MP.hist = []; MP.overAt = null; MP.drops = []; MP.saved = false; MP.waitFor = [];
+  MP.drops = []; MP.saved = false; MP.claims = {}; MP.firstSeen = {}; MP.settled = {}; MP.rescue = false;
+  MP.gt0 = nowMs(); MP.msgUntil = 0;
   Object.values(MP.peers).forEach(p => { p.gs = null; });
   cancelAnimationFrame(raf);
   gameEl.classList.remove('solo'); gameEl.classList.add('mp');
   overEl.classList.remove('show', 'mp', 'done');
   setPalette(0);
-  drawBoard(); drawTray();
+  drawBoard();
+  mpDeal();
   mpRenderScores(); mpRender();
   showScreen('game');
-  mpTryDeal();
-}
-// Estado de cada jugador para la tanda n: ok (con su tablero), necesito (aún no llega), o fuera
-function qState(id, n) {
-  if (isDropped(id)) return { st: 'skip' };
-  if (id === MP.id) return { st: 'ok', b: n === 0 ? emptyFlat() : decodeBoard(MP.hist[n - 1]) };
-  const g = MP.peers[id] && MP.peers[id].gs;
-  if (g && g.overAt !== null && n > g.overAt) return { st: 'skip' };
-  if (n === 0) return { st: 'ok', b: emptyFlat() };
-  if (!g || g.hist.length < n) return { st: 'need' };
-  return { st: 'ok', b: decodeBoard(g.hist[n - 1]) };
-}
-function mpTryDeal() {
-  if (mode !== 'mp' || MP.phase !== 'playing' || over || pieces) return;
-  const n = dealN, boards = [], need = [];
-  for (const [id] of MP.roster) {
-    const r = qState(id, n);
-    if (r.st === 'ok') boards.push(r.b); else if (r.st === 'need') need.push(id);
-  }
-  MP.waitFor = need;
-  if (need.length) { mpRender(); return; }
-  pieces = genDeal(MP.room + '|' + MP.gid, n, boards);
-  drawTray();
-  mpRender();
-  if (!anyMoveLeft()) mpMyOver();
+  mpMaybeOver();
 }
 function mpAfterMove() {
-  if (pieces.every(p => p === null)) {
-    MP.hist.push(encodeBoard(grid));
-    dealN++;
-    pieces = null;
-    drawTray(); updateScore(); mpSend(); mpTryDeal();
-    return;
+  if (pieces.every(p => p === null)) mpDeal(); else drawTray();
+  updateScore(); drawBoard();
+  mpCheckClaims();
+  mpSend();
+  mpMaybeOver();
+}
+
+// ---- premios: el primero en llegar a cada hito de 300 puntos se lo lleva ----
+function noteSeen(m) { if (!MP.firstSeen[m]) { MP.firstSeen[m] = nowMs(); setTimeout(mpSettle, CONFIRM_MS + 100); } }
+function claimsFor(m) {
+  const list = [];
+  if (m in MP.claims) list.push({ id: MP.id, t: MP.claims[m] });
+  for (const [id, p] of Object.entries(MP.peers)) {
+    if (!p.gs) continue;
+    const e = p.gs.claims.find(c => c[0] === m);
+    if (e) list.push({ id, t: e[1] });
   }
-  drawTray(); updateScore(); mpSend();
-  if (!anyMoveLeft()) mpMyOver();
+  return list;
+}
+function winnerOf(m) {
+  const l = claimsFor(m).sort((a, b) => (a.t - b.t) || (a.id < b.id ? -1 : 1));
+  return l.length ? l[0].id : null;
+}
+function mpCheckClaims() {
+  if (over) return;
+  for (let m = 1; MILESTONE * m <= score; m++) {
+    if (!(m in MP.claims)) { MP.claims[m] = nowMs() - MP.gt0; noteSeen(m); }
+  }
+}
+function pendingMine() {
+  let n = 0;
+  for (const m of Object.keys(MP.claims)) if (!MP.settled[m] && winnerOf(+m) === MP.id) n++;
+  return n;
+}
+function nextMilestone() {
+  let m = 1;
+  while (MP.settled[m] || (m in MP.claims) || claimsFor(m).length) m++;
+  return m * MILESTONE;
+}
+function applyReward(m) {
+  const kind = REWARDS[(m - 1) % REWARDS.length][0];
+  if (kind === 'clear') grid = emptyGrid();
+  else if (kind === 'half') {
+    let top = 0, bot = 0;
+    for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) if (grid[r][c]) { if (r < SIZE / 2) top++; else bot++; }
+    const from = bot >= top ? SIZE / 2 : 0;
+    for (let r = from; r < from + SIZE / 2; r++) grid[r].fill(0);
+  }
+  else if (kind === 'pts100') score += 100;
+  else if (kind === 'pts50') score += 50;
+  else if (kind === 'rescue') MP.rescue = true;
+  drawBoard(); updateScore();
+  floatText(REWARDS[(m - 1) % REWARDS.length][1]);
+  mpCheckClaims();
+}
+function mpSettle() {
+  if (mode !== 'mp' || MP.phase !== 'playing') return;
+  const known = new Set(Object.keys(MP.claims).map(Number));
+  for (const p of Object.values(MP.peers)) if (p.gs) p.gs.claims.forEach(c => known.add(c[0]));
+  let changed = false;
+  [...known].sort((a, b) => a - b).forEach(m => {
+    if (MP.settled[m] || !MP.firstSeen[m] || nowMs() - MP.firstSeen[m] < CONFIRM_MS) return;
+    MP.settled[m] = true; changed = true;
+    const w = winnerOf(m);
+    if (!w) return;
+    const label = REWARDS[(m - 1) % REWARDS.length][1];
+    MP.msgText = (w === MP.id ? 'Has llegado primero a ' : peerName(w) + ' llega primero a ') + (m * MILESTONE) + ': ' + label;
+    MP.msgUntil = nowMs() + 5000;
+    if (w === MP.id && !over) applyReward(m);
+  });
+  if (changed) { mpSend(); mpMaybeOver(); mpRender(); }
+}
+
+function mpMaybeOver() {
+  if (over || mode !== 'mp' || MP.phase !== 'playing') return;
+  if (anyMoveLeft() || pendingMine() > 0) return;
+  mpMyOver();
 }
 function mpMyOver() {
   if (over) return;
-  over = true; MP.overAt = dealN;
+  over = true;
   mpSend(); mpRenderScores(); mpCheckFinish(); mpRender();
 }
 function mpCheckFinish() {
@@ -1145,7 +1241,7 @@ function mpCheckFinish() {
   for (const [id] of MP.roster) {
     if (id === MP.id || isDropped(id)) continue;
     const g = MP.peers[id] && MP.peers[id].gs;
-    if (!(g && g.overAt !== null)) return;
+    if (!(g && g.over)) return;
   }
   mpFinish();
 }
@@ -1153,7 +1249,7 @@ function mpResults() {
   const rows = MP.roster.map(([id]) => {
     const g = MP.peers[id] && MP.peers[id].gs;
     const isMe = id === MP.id;
-    const done = isMe ? over : (isDropped(id) || (g && g.overAt !== null));
+    const done = isMe ? over : (isDropped(id) || (g && g.over));
     return { id, name: isMe ? MP.name : peerName(id), score: isMe ? score : (g ? g.s : 0), me: isMe, done: !!done };
   });
   return rows;
@@ -1181,8 +1277,10 @@ function mpRenderScores() {
   const rows = mpResults();
   const el = $('mpScores');
   el.className = rows.length >= 4 ? 'n4' : rows.length === 3 ? 'n3' : '';
+  const top = Math.max(...rows.map(r => r.score));
+  const leader = top > 0 && rows.filter(r => r.score === top).length === 1 ? rows.find(r => r.score === top).id : null;
   el.innerHTML = rows.map(r =>
-    '<div class="' + (r.me ? 'me ' : '') + (r.done ? 'out' : '') + '"><span>' + esc(r.name) + '</span><b>' + r.score + '</b></div>').join('');
+    '<div class="' + (r.me ? 'me ' : '') + (r.done ? 'out ' : '') + (r.id === leader ? 'lead' : '') + '"><em>👑</em><span>' + esc(r.name) + '</span><b>' + r.score + '</b></div>').join('');
 }
 function mpRender() {
   if ($('room').classList.contains('active')) renderRoom();
@@ -1191,10 +1289,14 @@ function mpRender() {
   let text = '';
   const staleWait = [];
   if (!MP.online) text = 'Sin conexión… reconectando';
-  else if (!pieces && !over && MP.waitFor.length) {
-    const names = MP.waitFor.map(id => peerName(id));
-    text = 'Esperando a ' + names.join(', ') + '…';
-    MP.waitFor.forEach(id => { const p = MP.peers[id]; if (!p || !fresh(p)) staleWait.push(id); });
+  else if (nowMs() < MP.msgUntil) text = MP.msgText;
+  else if (!over) text = 'Premio a los ' + nextMilestone() + ' puntos: se lo lleva el primero';
+  if (over && MP.phase === 'playing') {
+    MP.roster.forEach(([id]) => {
+      if (id === MP.id || isDropped(id)) return;
+      const g = MP.peers[id] && MP.peers[id].gs;
+      if (!(g && g.over) && !fresh(MP.peers[id])) staleWait.push(id);
+    });
   }
   $('mpStatusText').textContent = text;
   const bd = $('btnDrop');
@@ -1224,7 +1326,7 @@ function mpRender() {
 }
 function mpBackToRoom() {
   MP.lastGid = MP.gid; MP.gid = null; MP.phase = 'lobby';
-  MP.hist = []; MP.overAt = null; MP.drops = []; MP.saved = false; MP.waitFor = [];
+  MP.drops = []; MP.saved = false; MP.claims = {}; MP.firstSeen = {}; MP.settled = {}; MP.rescue = false;
   Object.values(MP.peers).forEach(p => { p.gs = null; });
   gameTok++; mode = 'solo'; over = true; score = 0;
   overEl.classList.remove('show', 'mp', 'done');
@@ -1317,7 +1419,7 @@ $('btnShareCode').addEventListener('click', shareCode);
 $('roomBack').addEventListener('click', () => mpLeave(''));
 $('btnDrop').addEventListener('click', () => {
   const id = $('btnDrop').dataset.id;
-  if (id && !MP.drops.includes(id)) { MP.drops.push(id); mpSend(); mpTryDeal(); mpCheckFinish(); mpRender(); }
+  if (id && !MP.drops.includes(id)) { MP.drops.push(id); mpSend(); mpCheckFinish(); mpRender(); }
 });
 $('btnRecords').addEventListener('click', () => { renderRecords(); showScreen('records'); });
 document.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', () => showScreen(b.dataset.go)));
