@@ -153,7 +153,8 @@
   #mpScores .out b { opacity: .4; }
   #mpScores.n3 { gap: 20px; } #mpScores.n3 b { font-size: 28px; } #mpScores.n3 span { max-width: 84px; }
   #mpScores.n4 { gap: 12px; } #mpScores.n4 b { font-size: 24px; } #mpScores.n4 span { max-width: 66px; font-size: 10px; }
-  #mpStatus { display: none; font-size: 13px; opacity: .6; min-height: 18px; text-align: center; margin-top: -16px; flex-direction: column; align-items: center; gap: 4px; }
+  #mpStatus { display: none; font-size: 13px; opacity: .6; min-height: 36px; text-align: center; margin-top: -16px; flex-direction: column; align-items: center; gap: 3px; }
+  #mpReward { font-size: 14px; font-weight: 600; color: var(--block); opacity: 1; min-height: 18px; }
   #game.mp #scores { display: none; }
   #game.mp #mpScores { display: flex; }
   #game.mp #mpStatus { display: flex; }
@@ -278,7 +279,7 @@
       <div><span>RÉCORD</span><b id="best">0</b></div>
     </div>
     <div id="mpScores"></div>
-    <div id="mpStatus"><span id="mpStatusText"></span></div>
+    <div id="mpStatus"><span id="mpReward"></span><span id="mpStatusText"></span></div>
     <div id="boardWrap"><div id="board"></div></div>
     <div id="tray"></div>
 
@@ -362,15 +363,15 @@ const SHAPES = [
 
 // Probabilidad de cada pieza según la dificultad: [fácil, normal, difícil]
 const WEIGHT_TABLE = [
-  [3, 1, .4],
-  [2.5, 1, .6], [2.5, 1, .6],
-  [2, 1, 1], [2, 1, 1],
-  [.8, 1, 2], [.8, 1, 2],
-  [2.5, 1, 1.2],
-  [.2, 1, 2.5],
-  [.8, 1, 2], [.8, 1, 2], [.8, 1, 2], [.8, 1, 2],
-  [2, 1, .8], [2, 1, .8], [2, 1, .8], [2, 1, .8],
-  [.8, 1, 1.8]
+  [3, 1, .15],
+  [2.5, 1, .4], [2.5, 1, .4],
+  [2, 1, .8], [2, 1, .8],
+  [.8, 1, 2.2], [.8, 1, 2.2],
+  [2.5, 1, 1],
+  [.2, 1, 3],
+  [.8, 1, 2.4], [.8, 1, 2.4], [.8, 1, 2.4], [.8, 1, 2.4],
+  [2, 1, .5], [2, 1, .5], [2, 1, .5], [2, 1, .5],
+  [.8, 1, 2.2]
 ];
 const WEIGHTS = { F: { list: [], total: 0 }, N: { list: [], total: 0 }, D: { list: [], total: 0 } };
 ['F', 'N', 'D'].forEach((k, j) => {
@@ -427,6 +428,7 @@ function mulberry32(a) {
   };
 }
 let rand = Math.random;
+const SOLO_BIAS = { F: -.4, N: .2, D: .75 };
 let weightOverride = null;                   // pesos mezclados según el tiempo (solo en partidas conjuntas)
 function pickShape() {                       // gasta siempre un único número aleatorio
   const w = weightOverride || WEIGHTS[gameDiff];
@@ -666,9 +668,11 @@ function mobility(cand, flat) {               // nº de sitios donde caben las p
   }
   return t;
 }
-// 'want' > 1: se reúnen hasta 'want' tandas jugables y se elige la que deja más holgura
-function genDeal(seed, n, boards, want) {
-  let bestDeal = null, bestMin = -1, bestSum = -1, good = 0, goodBest = null, goodMob = -1;
+// bias: -1 = tandas muy fáciles, 0 = al azar, +1 = tandas muy duras. Siempre se eligen tandas que se pueden
+// colocar enteras; el sesgo solo decide cuál de varias tandas válidas se reparte (la que deja más o menos holgura).
+function genDeal(seed, n, boards, bias) {
+  const want = 1 + Math.round(Math.abs(bias || 0) * 5);
+  let bestDeal = null, bestMin = -1, bestSum = -1, good = 0, pick = null, pickMob = 0;
   for (let a = 0; a < MAX_ATTEMPTS; a++) {
     rand = mulberry32(hashStr(seed + '#' + n + '#' + a));
     const cand = [0, 1, 2].map(() => pickShape());
@@ -676,13 +680,13 @@ function genDeal(seed, n, boards, want) {
     for (const b of boards) { const m = maxPlaceable(cand, b); if (m < min) min = m; sum += m; }
     if (min > bestMin || (min === bestMin && sum > bestSum)) { bestMin = min; bestSum = sum; bestDeal = cand; }
     if (min === 3) {
-      if (!want || want < 2) break;
+      if (want < 2) break;
       const mob = boards.reduce((acc, b) => acc + mobility(cand, b), 0);
-      if (mob > goodMob) { goodMob = mob; goodBest = cand; }
+      if (!pick || (bias < 0 ? mob > pickMob : mob < pickMob)) { pick = cand; pickMob = mob; }
       if (++good >= want) break;
     }
   }
-  return goodBest || bestDeal;
+  return pick || bestDeal;
 }
 
 // ---------- flujo de una jugada (común) ----------
@@ -739,7 +743,7 @@ function afterMove() {
 //  MODO SOLO (sin códigos)
 // ======================================================================
 function dealSolo() {
-  pieces = genDeal(dealSeed, dealN, [flatBoard()]);
+  pieces = genDeal(dealSeed, dealN, [flatBoard()], SOLO_BIAS[gameDiff]);
   dealN++;
   drawTray();
 }
@@ -882,15 +886,18 @@ const MP = {
   tok: 0, room: null, id: null, name: '', host: false, diff: 'N', client: null, online: false,
   phase: 'idle',          // idle | lobby | playing | ended
   gid: null, lastGid: null, roster: [], peers: {}, drops: [], claims: {}, firstSeen: {}, settled: {},
-  rescue: false, order: [0, 1, 2, 3, 4], gt0: 0, msgText: '', msgUntil: 0, saved: false, t0: 0, tick: null, tick2: null
+  rescue: false, order: [0, 1, 2, 3], gt0: 0, msgText: '', msgUntil: 0, saved: false, t0: 0, tick: null, tick2: null
 };
 const MILESTONE = 200, MP_LEVEL = 200, CONFIRM_MS = 1200, COMMON_DEALS = 4;
 const RAMP_MS = 10 * 60 * 1000;                                 // en ~10 min las piezas llegan a la dificultad final
-const RAMPS = { F: [0, 1], N: [.3, 2], D: [1.2, 2] };           // posición en [fácil, normal, difícil]: [al empezar, al final]
+// posición en [fácil, normal, difícil] de las piezas y sesgo de la tanda: [al empezar, al final]
+const RAMPS = { F: { x: [0, .8], b: [-.9, -.3] }, N: { x: [.5, 1.5], b: [0, .7] }, D: { x: [1.3, 2], b: [.6, 1] } };
 const wAt = (w, x) => { const i = Math.min(1, Math.floor(x)), f = x - i; return w[i] * (1 - f) + w[i + 1] * f; };     // 4 tandas x 3 = las 12 primeras piezas iguales
-const REWARDS = [
-  ['clear', 'Tablero limpio'], ['pts100', '+100 puntos'], ['half', 'Media limpieza'],
-  ['rescue', 'Piezas de rescate'], ['pts50', '+50 puntos']
+const REWARDS = [   // [tipo, nombre corto, resumen de 3-5 palabras]
+  ['clear', 'Tablero limpio', 'Se limpia todo tu tablero'],
+  ['half', 'Media limpieza', 'Se limpia la mitad del tablero'],
+  ['rescue', 'Piezas de rescate', 'Siguiente tanda: piezas pequeñas'],
+  ['rows', 'Dos filas limpias', 'Se borran tus 2 filas más llenas']
 ];
 const nowMs = () => Date.now();
 const fresh = p => !!p && nowMs() - p.seen < STALE_MS;
@@ -1150,10 +1157,10 @@ function mpDeal() {
   else {
     // dificultad creciente: mezcla de pesos entre la tabla inicial y la final según el tiempo de partida
     const t = Math.max(0, Math.min(1, (nowMs() - MP.gt0) / RAMP_MS)), rp = RAMPS[gameDiff] || RAMPS.N;
-    const x = rp[0] + (rp[1] - rp[0]) * t;
+    const x = rp.x[0] + (rp.x[1] - rp.x[0]) * t, bias = rp.b[0] + (rp.b[1] - rp.b[0]) * t;
     const list = WEIGHT_TABLE.map(w => wAt(w, x));
     weightOverride = { list, total: list.reduce((a, b) => a + b, 0) };
-    pieces = genDeal(MP.room + '|' + MP.gid + '|' + MP.id, n, [flatBoard()], 1 + Math.round(4 * (1 - t)));
+    pieces = genDeal(MP.room + '|' + MP.gid + '|' + MP.id, n, [flatBoard()], bias);
     weightOverride = null;
   }
   dealN++;
@@ -1236,8 +1243,10 @@ function applyReward(m) {
     const from = bot >= top ? SIZE / 2 : 0;
     for (let r = from; r < from + SIZE / 2; r++) grid[r].fill(0);
   }
-  else if (kind === 'pts100') score += 100;
-  else if (kind === 'pts50') score += 50;
+  else if (kind === 'rows') {
+    const cnt = grid.map((row, r) => [row.reduce((a, b) => a + b, 0), r]).sort((a, b) => b[0] - a[0]);
+    cnt.slice(0, 2).forEach(e => grid[e[1]].fill(0));
+  }
   else if (kind === 'rescue') MP.rescue = true;
   drawBoard(); updateScore();
   floatText(rewardFor(m)[1]);
@@ -1335,6 +1344,7 @@ function mpRender() {
     });
   }
   $('mpStatusText').textContent = text;
+  $('mpReward').textContent = (!over && MP.online) ? '🎁 ' + rewardFor(nextMilestone() / MILESTONE)[2] : '';
   const bd = $('btnDrop');
   if (staleWait.length) { bd.style.display = 'block'; bd.textContent = 'No esperar a ' + peerName(staleWait[0]); bd.dataset.id = staleWait[0]; }
   else bd.style.display = 'none';
