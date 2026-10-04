@@ -148,6 +148,20 @@
   }
   #mpScores b { font-size: 34px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.1; }
   #mpScores .me span { color: var(--block); opacity: 1; }
+  #mpScores .hh { font-style: normal; font-size: 12px; letter-spacing: 2px; line-height: 1.1; color: #d9534f; opacity: 1; }
+  #mpScores .hh u { text-decoration: none; opacity: .22; }
+  #lifeBanner {
+    position: absolute; inset: 0; z-index: 6; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+    background: var(--overlay); border-radius: 6px; text-align: center; pointer-events: none;
+    opacity: 0; visibility: hidden; transition: opacity .25s ease, visibility 0s .25s;
+  }
+  #lifeBanner.show { opacity: 1; visibility: visible; transition: opacity .25s ease, visibility 0s; }
+  #lifeBanner b { font-size: 26px; font-weight: 600; }
+  #lifeBanner span { font-size: 15px; opacity: .6; }
+  #lifeBanner i { font-style: normal; font-size: 22px; letter-spacing: 4px; color: #d9534f; }
+  #lifeBanner i u { text-decoration: none; opacity: .22; }
+  .orow .ot { display: flex; flex-direction: column; align-items: flex-end; flex-shrink: 0; }
+  .orow .ot small { font-size: 12px; opacity: .5; font-weight: 500; }
   #mpScores em { font-style: normal; font-size: 17px; line-height: 17px; height: 17px; visibility: hidden; }
   #mpScores .lead em { visibility: visible; }
   #mpScores .out b { opacity: .4; }
@@ -280,7 +294,7 @@
     </div>
     <div id="mpScores"></div>
     <div id="mpStatus"><span id="mpReward"></span><span id="mpStatusText"></span></div>
-    <div id="boardWrap"><div id="board"></div></div>
+    <div id="boardWrap"><div id="board"></div><div id="lifeBanner"></div></div>
     <div id="tray"></div>
 
     <div id="over">
@@ -886,9 +900,9 @@ const MP = {
   tok: 0, room: null, id: null, name: '', host: false, diff: 'N', client: null, online: false,
   phase: 'idle',          // idle | lobby | playing | ended
   gid: null, lastGid: null, roster: [], peers: {}, drops: [], claims: {}, firstSeen: {}, settled: {},
-  rescue: false, order: [0, 1, 2, 3], gt0: 0, msgText: '', msgUntil: 0, saved: false, t0: 0, tick: null, tick2: null
+  rescue: false, order: [0, 1, 2, 3], lives: 3, life: 0, lifeBase: 0, lifeBest: 0, et: null, lifeBusy: false, gt0: 0, msgText: '', msgUntil: 0, saved: false, t0: 0, tick: null, tick2: null
 };
-const MILESTONE = 200, MP_LEVEL = 200, CONFIRM_MS = 1200, COMMON_DEALS = 4;
+const LIVES = 3, BONUS = 200, MILESTONE = 200, MP_LEVEL = 200, CONFIRM_MS = 1200, COMMON_DEALS = 4;
 const RAMP_MS = 10 * 60 * 1000;                                 // en ~10 min las piezas llegan a la dificultad final
 // posición en [fácil, normal, difícil] de las piezas y sesgo de la tanda: [al empezar, al final]
 const RAMPS = { F: { x: [0, .8], b: [-.9, -.3] }, N: { x: [.5, 1.5], b: [0, .7] }, D: { x: [1.3, 2], b: [.6, 1] } };
@@ -933,7 +947,7 @@ function mpReset() {
 // ---- mensajes ----
 function mpMsg(leaving) {
   const ph = leaving ? 'x' : ({ lobby: 'l', playing: 'p', ended: 'e' }[MP.phase] || 'l');
-  const m = { v: 1, id: MP.id, n: MP.name, h: MP.host ? 1 : 0, ph, g: MP.gid, d: MP.diff, s: score, o: over ? 1 : 0, x: MP.drops,
+  const m = { v: 1, id: MP.id, n: MP.name, h: MP.host ? 1 : 0, ph, g: MP.gid, d: MP.diff, s: score, o: over ? 1 : 0, l: MP.lives, b: bestLife(), et: MP.et, x: MP.drops,
     c: Object.keys(MP.claims).map(k => [+k, MP.claims[k]]) };
   if (MP.host && (MP.phase === 'playing' || MP.phase === 'ended')) m.r = MP.roster;
   return JSON.stringify(m);
@@ -949,6 +963,9 @@ function cleanMsg(m) {
     d: ['F', 'N', 'D'].includes(m.d) ? m.d : null,
     s: Number.isFinite(m.s) ? Math.max(0, Math.min(10000000, m.s | 0)) : 0,
     o: m.o ? 1 : 0,
+    l: Number.isInteger(m.l) && m.l >= 0 && m.l <= LIVES ? m.l : LIVES,
+    b: Number.isFinite(m.b) ? Math.max(0, Math.min(10000000, m.b | 0)) : 0,
+    et: Number.isFinite(m.et) && m.et >= 0 ? Math.min(Math.floor(m.et), 1e10) : null,
     c: Array.isArray(m.c) ? m.c.filter(e => Array.isArray(e) && Number.isInteger(e[0]) && e[0] > 0 && e[0] < 200 && Number.isFinite(e[1]) && e[1] >= 0).slice(0, 100).map(e => [e[0], e[1]]) : [],
     x: Array.isArray(m.x) ? m.x.filter(i => typeof i === 'string' && ID_RE.test(i)).slice(0, 8) : [],
     r: null };
@@ -962,7 +979,9 @@ function mpOnMessage(topic, text) {
   p.name = m.n; p.host = !!m.h; p.ph = m.ph; p.g = m.g; p.seen = nowMs();
   if (m.h && m.d) MP.diff = m.d;
   if ((MP.phase === 'playing' || MP.phase === 'ended') && m.g && m.g === MP.gid) {
-    p.gs = { s: m.s, over: !!m.o, drops: m.x, claims: m.c };
+    const prevL = p.gs ? p.gs.l : m.l;
+    p.gs = { s: m.s, over: !!m.o, drops: m.x, claims: m.c, l: m.l, b: m.b, et: m.et };
+    if (m.l < prevL && m.l > 0) { MP.msgText = m.n + ' pierde una vida (le quedan ' + m.l + ')'; MP.msgUntil = nowMs() + 3500; }
     m.c.forEach(e => noteSeen(e[0]));
   }
 
@@ -1018,8 +1037,9 @@ function mpFail(msg, screen) {
 }
 function mpLeave(msg) {                       // salir de la sala (o de la partida) y volver al menú de juntos
   const wasPlaying = MP.phase === 'playing' || MP.phase === 'ended';
-  if (MP.client && MP.online) { if (wasPlaying && !over) over = true; mpSend(true); }
+  if (MP.client && MP.online) { if (wasPlaying && !over) { over = true; MP.et = nowMs() - MP.gt0; MP.lives = 0; } mpSend(true); }
   gameTok++;
+  $('lifeBanner').classList.remove('show'); MP.lifeBusy = false;
   const c = MP.client;
   setTimeout(() => { try { c && c.end(); } catch (e) {} }, 250);
   MP.client = null;
@@ -1077,7 +1097,7 @@ function lobbyPlayers() {
 function renderRoom(msgOverride) {
   if (!$('room').classList.contains('active') && !msgOverride) return;
   $('roomCode').textContent = MP.room || '-----';
-  $('roomDiff').textContent = 'DIFICULTAD ' + DIFFS[MP.diff].toUpperCase();
+  $('roomDiff').textContent = 'DIFICULTAD ' + DIFFS[MP.diff].toUpperCase() + ' · ' + LIVES + ' VIDAS';
   const lp = lobbyPlayers();
   $('plist').innerHTML = lp.map(p =>
     '<div class="pl"><span>' + esc(p.name) + '</span><small>' + (p.host ? 'ANFITRIÓN' : '') + (p.id === MP.id ? (p.host ? ' · TÚ' : 'TÚ') : '') + '</small></div>').join('');
@@ -1123,7 +1143,7 @@ function peerName(id) { const e = MP.roster.find(r => r[0] === id); return (MP.p
 // pensadas para su propio tablero, siempre colocables entera.
 const RESCUE_POOL = [0, 1, 2, 7, 13, 14, 15, 16];
 function rescueDeal(n) {
-  const seed = MP.room + '|' + MP.gid + '|' + MP.id + '|r';
+  const seed = MP.room + '|' + MP.gid + '|' + MP.id + '|r' + MP.life;
   const flat = flatBoard();
   let best = null, bestM = -1;
   for (let a = 0; a < MAX_ATTEMPTS; a++) {
@@ -1138,7 +1158,7 @@ function rescueDeal(n) {
 // Las 12 primeras piezas son iguales para todos y sencillas, para que nadie se quede sin jugadas al principio
 const COMMON_POOL = [0, 1, 2, 3, 4, 7, 13, 14, 15, 16];
 function commonDeal(n) {
-  const seed = MP.room + '|' + MP.gid + '|c';
+  const seed = MP.room + '|' + MP.gid + '|c' + MP.life;
   const flat = emptyFlat();
   let best = null, bestM = -1;
   for (let a = 0; a < MAX_ATTEMPTS; a++) {
@@ -1160,7 +1180,7 @@ function mpDeal() {
     const x = rp.x[0] + (rp.x[1] - rp.x[0]) * t, bias = rp.b[0] + (rp.b[1] - rp.b[0]) * t;
     const list = WEIGHT_TABLE.map(w => wAt(w, x));
     weightOverride = { list, total: list.reduce((a, b) => a + b, 0) };
-    pieces = genDeal(MP.room + '|' + MP.gid + '|' + MP.id, n, [flatBoard()], bias);
+    pieces = genDeal(MP.room + '|' + MP.gid + '|' + MP.id + '|L' + MP.life, n, [flatBoard()], bias);
     weightOverride = null;
   }
   dealN++;
@@ -1175,6 +1195,8 @@ function startMpGame() {
   score = 0; locked = false; over = false; newRecord = false;
   MP.drops = []; MP.saved = false; MP.claims = {}; MP.firstSeen = {}; MP.settled = {}; MP.rescue = false;
   MP.gt0 = nowMs(); MP.msgUntil = 0;
+  MP.lives = LIVES; MP.life = 0; MP.lifeBase = 0; MP.lifeBest = 0; MP.et = null; MP.lifeBusy = false;
+  $('lifeBanner').classList.remove('show');
   { // orden aleatorio (igual para todos) de los premios de esta partida
     const rnd = mulberry32(hashStr(MP.room + '|' + MP.gid + '|rw'));
     const o = REWARDS.map((_, i) => i);
@@ -1270,15 +1292,39 @@ function mpSettle() {
   if (changed) { mpSend(); mpMaybeOver(); mpRender(); }
 }
 
+const bestLife = () => Math.max(MP.lifeBest, score - MP.lifeBase);
+const heartsHTML = n => '♥'.repeat(n) + (n < LIVES ? '<u>' + '♥'.repeat(LIVES - n) + '</u>' : '');
 function mpMaybeOver() {
   if (over || mode !== 'mp' || MP.phase !== 'playing') return;
-  if (locked || !pieces || pieces.every(p => p === null)) return;      // a mitad de una jugada: se comprobará al acabar
+  if (locked || MP.lifeBusy || !pieces || pieces.every(p => p === null)) return;   // a mitad de una jugada: se comprobará al acabar
   if (anyMoveLeft() || pendingMine() > 0) return;
-  mpMyOver();
+  mpLoseLife();
+}
+// Sin jugadas: pierdes una vida y el tablero se reinicia (tus puntos se conservan)
+function mpLoseLife() {
+  MP.lifeBest = Math.max(MP.lifeBest, score - MP.lifeBase);
+  MP.lives--;
+  if (MP.lives <= 0) { MP.lives = 0; mpMyOver(); return; }
+  MP.lifeBusy = true; locked = true;
+  MP.life++; MP.lifeBase = score;
+  const bn = $('lifeBanner');
+  bn.innerHTML = '<b>Pierdes una vida</b><i>' + heartsHTML(MP.lives) + '</i><span>' + (MP.lives === 1 ? 'Te queda 1 vida' : 'Te quedan ' + MP.lives + ' vidas') + '</span>';
+  bn.classList.add('show');
+  mpSend(); mpRenderScores();
+  const tok = gameTok;
+  setTimeout(() => {
+    if (tok !== gameTok || mode !== 'mp') return;
+    bn.classList.remove('show');
+    grid = emptyGrid(); dealN = 0; pieces = null;
+    MP.lifeBusy = false; locked = false;
+    drawBoard(); mpDeal();
+    mpSend(); mpMaybeOver();
+  }, 2000);
 }
 function mpMyOver() {
   if (over) return;
   over = true;
+  if (MP.et === null) MP.et = nowMs() - MP.gt0;
   mpSend(); mpRenderScores(); mpCheckFinish(); mpRender();
 }
 function mpCheckFinish() {
@@ -1295,20 +1341,29 @@ function mpResults() {
     const g = MP.peers[id] && MP.peers[id].gs;
     const isMe = id === MP.id;
     const done = isMe ? over : (isDropped(id) || (g && g.over));
-    return { id, name: isMe ? MP.name : peerName(id), score: isMe ? score : (g ? g.s : 0), me: isMe, done: !!done };
+    const et = isMe ? MP.et : (g && g.et !== null ? g.et : (isDropped(id) ? -1 : null));
+    return { id, name: isMe ? MP.name : peerName(id), score: isMe ? score : (g ? g.s : 0), me: isMe, done: !!done,
+      lives: isMe ? MP.lives : (g ? g.l : LIVES), best: isMe ? bestLife() : (g ? g.b : 0), et, bonus: 0, total: 0 };
   });
+  // bonus: para quien aguanta más tiempo en pie (el último en quedarse sin vidas)
+  if (rows.every(r => r.done)) {
+    const cand = rows.filter(r => r.et !== null && r.et >= 0).sort((a, b) => (b.et - a.et) || (a.id < b.id ? -1 : 1));
+    if (cand.length) cand[0].bonus = BONUS;
+  }
+  rows.forEach(r => { r.total = r.score + r.bonus; });
   return rows;
 }
+const mpCmp = (a, b) => (b.total - a.total) || (b.best - a.best);       // más puntos; si empatan, mejor vida individual
 function mpFinish() {
   MP.phase = 'ended';
-  const rows = mpResults();
-  const top = Math.max(...rows.map(r => r.score));
-  const winners = rows.filter(r => r.score === top);
+  const rows = mpResults().sort(mpCmp);
+  const winners = rows.filter(r => mpCmp(r, rows[0]) === 0);
   if (!MP.saved) {
     MP.saved = true;
     const others = rows.filter(r => !r.me).map(r => r.name);
     const w = winners.length > 1 ? (winners.some(r => r.me) ? 2 : 0) : (winners[0].me ? 1 : 0);
-    data.games.push({ s: score, d: Date.now(), df: gameDiff, mp: { n: others, w } });
+    const mine = rows.find(r => r.me);
+    data.games.push({ s: mine ? mine.total : score, d: Date.now(), df: gameDiff, mp: { n: others, w } });
     if (data.games.length > 100) data.games = data.games.slice(-100);
     saveData();
   }
@@ -1325,7 +1380,7 @@ function mpRenderScores() {
   const top = Math.max(...rows.map(r => r.score));
   const leader = top > 0 && rows.filter(r => r.score === top).length === 1 ? rows.find(r => r.score === top).id : null;
   el.innerHTML = rows.map(r =>
-    '<div class="' + (r.me ? 'me ' : '') + (r.done ? 'out ' : '') + (r.id === leader ? 'lead' : '') + '"><em>👑</em><span>' + esc(r.name) + '</span><b>' + r.score + '</b></div>').join('');
+    '<div class="' + (r.me ? 'me ' : '') + (r.done ? 'out ' : '') + (r.id === leader ? 'lead' : '') + '"><em>👑</em><span>' + esc(r.name) + '</span><b>' + r.score + '</b><i class="hh">' + heartsHTML(r.lives) + '</i></div>').join('');
 }
 function mpRender() {
   if ($('room').classList.contains('active')) renderRoom();
@@ -1333,6 +1388,7 @@ function mpRender() {
   // estado y espera
   let text = '';
   const staleWait = [];
+  let autoDropped = false;
   if (!MP.online) text = 'Sin conexión… reconectando';
   else if (nowMs() < MP.msgUntil) text = MP.msgText;
   else if (!over) text = 'Premio a los ' + nextMilestone() + ' puntos: se lo lleva el primero';
@@ -1340,8 +1396,12 @@ function mpRender() {
     MP.roster.forEach(([id]) => {
       if (id === MP.id || isDropped(id)) return;
       const g = MP.peers[id] && MP.peers[id].gs;
-      if (!(g && g.over) && !fresh(MP.peers[id])) staleWait.push(id);
+      if (g && g.over) return;
+      const pr = MP.peers[id];
+      if (nowMs() - (pr ? pr.seen : MP.gt0) > 60000) { MP.drops.push(id); autoDropped = true; }
+      else if (!fresh(pr)) staleWait.push(id);
     });
+    if (autoDropped) { mpSend(); mpCheckFinish(); }
   }
   $('mpStatusText').textContent = text;
   $('mpReward').textContent = (!over && MP.online) ? '🎁 ' + rewardFor(nextMilestone() / MILESTONE)[2] : '';
@@ -1351,18 +1411,21 @@ function mpRender() {
   mpRenderScores();
   // resultados
   if (over) {
-    const rows = mpResults().sort((a, b) => b.score - a.score);
     const ended = MP.phase === 'ended';
-    const top = rows.length ? rows[0].score : 0;
-    const winners = rows.filter(r => r.score === top);
+    const rows = mpResults().sort(ended ? mpCmp : (a, b) => b.score - a.score);
+    const winners = rows.filter(r => mpCmp(r, rows[0]) === 0);
     overEl.classList.add('mp'); overEl.classList.toggle('done', ended);
     $('overTitle').textContent = ended ? 'FIN DE PARTIDA' : 'HAS TERMINADO';
     $('overInfo').textContent = 'JUGUEM JUNTS  ·  ' + DIFFS[gameDiff].toUpperCase();
     $('overList').innerHTML = rows.map(r => {
+      const win = ended && winners.includes(r);
       let tag = '';
-      if (ended) { if (winners.length === 1 && r.score === top) tag = '<span class="tagw w">GANADOR</span>'; else if (winners.length > 1 && r.score === top) tag = '<span class="tagw t">EMPATE</span>'; }
+      if (ended) { if (win) tag = winners.length === 1 ? '<span class="tagw w">GANADOR</span>' : '<span class="tagw t">EMPATE</span>'; }
       else tag = '<span class="tagw ' + (r.done ? 'l' : 't') + '">' + (r.done ? 'TERMINÓ' : 'JUGANDO') + '</span>';
-      return '<div class="orow' + (ended && r.score === top ? ' top' : '') + '"><div class="nm"><span>' + esc(r.name) + (r.me ? ' (tú)' : '') + '</span>' + tag + '</div><b>' + r.score + '</b></div>';
+      const right = ended
+        ? '<div class="ot"><b>' + r.total + '</b><small>' + r.score + (r.bonus ? ' + ' + r.bonus + ' bonus' : '') + '</small></div>'
+        : '<div class="ot"><b>' + r.score + '</b></div>';
+      return '<div class="orow' + (win ? ' top' : '') + '"><div class="nm"><span>' + esc(r.name) + (r.me ? ' (tú)' : '') + '</span>' + tag + '</div>' + right + '</div>';
     }).join('');
     $('recMsg').textContent = ended
       ? (winners.length > 1 ? 'Empate' : (winners[0].me ? '¡Has ganado!' : 'Gana ' + winners[0].name))
@@ -1375,6 +1438,7 @@ function mpBackToRoom() {
   MP.drops = []; MP.saved = false; MP.claims = {}; MP.firstSeen = {}; MP.settled = {}; MP.rescue = false;
   Object.values(MP.peers).forEach(p => { p.gs = null; });
   gameTok++; mode = 'solo'; over = true; score = 0;
+  $('lifeBanner').classList.remove('show'); MP.lifeBusy = false;
   overEl.classList.remove('show', 'mp', 'done');
   gameEl.classList.remove('mp'); gameEl.classList.add('solo');
   showScreen('room');
