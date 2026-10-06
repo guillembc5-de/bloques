@@ -119,7 +119,8 @@
   }
 
   /* ---------- juntos / unirse / sala ---------- */
-  #together, #join { gap: 12px; }
+  #together, #join, #mgwho { gap: 12px; }
+  #mgwho h2 { margin: 0 0 14px; font-size: 22px; font-weight: 500; letter-spacing: .06em; }
   #together h2, #join h2 { margin: 0 0 6px; font-size: 22px; font-weight: 500; letter-spacing: .06em; }
   #together .btn, #join .btn { margin-top: 2px; }
   .gap { height: 8px; }
@@ -261,6 +262,21 @@
   .tagw.l { background: var(--l-bg); color: var(--l-fg); }
   .tagw.t { background: var(--t-bg); color: var(--t-fg); }
   .empty { text-align: center; opacity: .45; padding: 36px 0; font-size: 15px; margin: 0; }
+  /* botón Martina vs Guillem */
+  .mgbtn { display: flex; align-items: stretch; justify-content: space-between; gap: 4px; padding: 8px 10px; }
+  .mgp { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 4px 7px; border-radius: 12px; transition: background .8s ease; min-width: 0; }
+  .mgp b { font-size: 16px; font-weight: 600; letter-spacing: .01em; }
+  .mgp small { font-size: 12px; opacity: .5; font-variant-numeric: tabular-nums; min-height: 15px; }
+  .mgvs { align-self: center; font-size: 10px; letter-spacing: .14em; opacity: .3; }
+  .mgdot { width: 9px; height: 9px; border-radius: 50%; background: #c8c4b8; margin-bottom: 3px; transition: background .8s ease; }
+  .mgp.lead { background: rgba(111, 186, 140, .15); }
+  .mgp.trail { background: rgba(224, 138, 128, .13); }
+  .mgp.lead .mgdot { background: #6fba8c; animation: mgG 2.6s ease-out infinite; }
+  .mgp.trail .mgdot { background: #e08a80; animation: mgR 2.6s ease-out infinite; }
+  @keyframes mgG { 0% { box-shadow: 0 0 0 0 rgba(111,186,140,.55); } 70%, 100% { box-shadow: 0 0 0 9px rgba(111,186,140,0); } }
+  @keyframes mgR { 0% { box-shadow: 0 0 0 0 rgba(224,138,128,.5); } 70%, 100% { box-shadow: 0 0 0 9px rgba(224,138,128,0); } }
+  @media (prefers-reduced-motion: reduce) { .mgp .mgdot { animation: none !important; } }
+  #btnMgWho { align-self: center; width: auto; font-size: 13px; opacity: .4; margin-top: -6px; }
   #btnReset { align-self: center; margin-top: 8px; width: auto; font-size: 13px; opacity: .4; }
 </style>
 </head>
@@ -281,6 +297,11 @@
     </div>
     <button class="btn" id="btnPlay">Jugar solo</button>
     <button class="btn sec" id="btnTogether">Juguem junts</button>
+    <button class="btn sec mgbtn" id="btnMG" aria-label="Martina contra Guillem">
+      <span class="mgp" id="mgpM"><i class="mgdot"></i><b>Martina</b><small>—</small></span>
+      <span class="mgvs">VS</span>
+      <span class="mgp" id="mgpG"><i class="mgdot"></i><b>Guillem</b><small>—</small></span>
+    </button>
     <button class="btn sec" id="btnRecords">Récords</button>
     <div class="credit">created by guillem</div>
   </div>
@@ -323,6 +344,15 @@
     <div class="lbl" id="togetherDiff" style="margin-top:10px"></div>
   </div>
 
+  <!-- MARTINA VS GUILLEM: quién eres -->
+  <div class="screen" id="mgwho">
+    <button class="back" data-go="home" aria-label="Volver"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+    <h2>¿Quién eres?</h2>
+    <button class="btn" id="whoM">Martina</button>
+    <button class="btn" id="whoG">Guillem</button>
+    <div class="lbl" style="margin-top:10px">SE GUARDA EN ESTE MÓVIL</div>
+  </div>
+
   <!-- INTRODUCIR CÓDIGO -->
   <div class="screen" id="join">
     <button class="back" data-go="together" aria-label="Volver"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
@@ -355,6 +385,7 @@
       </div>
       <div class="pane on" id="paneP"></div>
       <div class="pane" id="paneG"></div>
+      <button class="btn ghost" id="btnMgWho" style="display:none"></button>
       <button class="btn ghost" id="btnReset">Borrar récords</button>
     </div>
   </div>
@@ -459,7 +490,7 @@ function esc(s) {
 
 // ---------- datos guardados en el móvil ----------
 function loadData() {
-  const fresh = { bests: { F: 0, N: 0, D: 0 }, played: 0, total: 0, games: [], diff: 'N', theme: null, name: '' };
+  const fresh = { bests: { F: 0, N: 0, D: 0 }, played: 0, total: 0, games: [], diff: 'N', theme: null, name: '', mgMe: null };
   try {
     const raw = localStorage.getItem('bloques_v2');
     if (raw) {
@@ -471,7 +502,8 @@ function loadData() {
           bests, played: d.played || 0, total: d.total || 0, games: d.games,
           diff: ['F', 'N', 'D'].includes(d.diff) ? d.diff : 'N',
           theme: (d.theme === 'light' || d.theme === 'dark') ? d.theme : null,
-          name: typeof d.name === 'string' ? d.name.slice(0, 14) : ''
+          name: typeof d.name === 'string' ? d.name.slice(0, 14) : '',
+          mgMe: (d.mgMe === 'M' || d.mgMe === 'G') ? d.mgMe : null
         };
       }
     }
@@ -516,7 +548,7 @@ const cells = [];
 
 function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.toggle('active', s.id === id));
-  if (id === 'home') setPalette(0);
+  if (id === 'home') { setPalette(0); if (typeof mgRefreshHome === 'function') mgRefreshHome(); }
 }
 
 // ---------- tablero ----------
@@ -551,7 +583,7 @@ function animateScore() {
 function updateScore() {
   if (mode === 'solo') { bestEl.textContent = best; animateScore(); }
   else mpRenderScores();
-  setPalette(Math.floor(score / (mode === 'mp' ? MP_LEVEL : LEVEL_POINTS)));
+  setPalette(Math.floor(score / (mode === 'solo' ? LEVEL_POINTS : MP_LEVEL)));
 }
 
 // ---------- piezas ----------
@@ -746,6 +778,7 @@ function finishPlacement(shape, row, col, idx) {
 }
 function afterMove() {
   if (mode === 'mp') { mpAfterMove(); return; }
+  if (mode === 'mg') { mgAfterMove(); return; }
   if (pieces.every(p => p === null)) dealSolo(); else drawTray();
   if (score > best) { best = score; newRecord = true; data.bests[gameDiff] = best; saveData(); }
   updateScore();
@@ -804,8 +837,9 @@ function mqttStr(s) { const u = new TextEncoder().encode(s); return u8cat(Uint8A
 function mqttPkt(first, body) { return u8cat(u8cat(Uint8Array.from([first]), mqttLen(body.length)), body); }
 
 class MiniMQTT {
-  constructor(url, clientId, topic) {
+  constructor(url, clientId, topic, pubTopic, retain, maxDelay) {
     this.url = url; this.clientId = clientId; this.topic = topic;
+    this.pubTopic = pubTopic || topic; this.retain = !!retain; this.maxDelay = maxDelay || 2000; this.retryN = 0;
     this.ws = null; this.buf = new Uint8Array(0); this.closed = false; this.connected = false;
     this.pingT = null; this.retryT = null; this.pid = 1;
     this.onconnect = null; this.ondisconnect = null; this.onmessage = null;
@@ -832,7 +866,7 @@ class MiniMQTT {
     this.connected = false;
     clearInterval(this.pingT);
     if (was || true) { if (this.ondisconnect) this.ondisconnect(); }
-    if (!this.closed) this.retryT = setTimeout(() => this._connect(), 2000);
+    if (!this.closed) { this.retryT = setTimeout(() => this._connect(), Math.min(this.maxDelay, 2000 * Math.pow(2, this.retryN))); this.retryN++; }
   }
   _send(u8) { try { if (this.ws && this.ws.readyState === 1) { this.ws.send(u8); return true; } } catch (e) {} return false; }
   _data(chunk) {
@@ -858,7 +892,7 @@ class MiniMQTT {
       clearInterval(this.pingT);
       this.pingT = setInterval(() => this._send(Uint8Array.from([0xC0, 0])), 20000);
     } else if (type === 9) {                            // SUBACK
-      this.connected = true;
+      this.connected = true; this.retryN = 0;
       if (this.onconnect) this.onconnect();
     } else if (type === 3) {                            // PUBLISH
       const qos = (flags >> 1) & 3;
@@ -871,7 +905,7 @@ class MiniMQTT {
   }
   publish(text) {
     if (!this.connected) return false;
-    return this._send(mqttPkt(0x30, u8cat(mqttStr(this.topic), new TextEncoder().encode(text))));
+    return this._send(mqttPkt(0x30 | (this.retain ? 1 : 0), u8cat(mqttStr(this.pubTopic), new TextEncoder().encode(text))));
   }
   ensure() {
     if (this.closed) return;
@@ -1157,8 +1191,8 @@ function rescueDeal(n) {
 }
 // Las 12 primeras piezas son iguales para todos y sencillas, para que nadie se quede sin jugadas al principio
 const COMMON_POOL = [0, 1, 2, 3, 4, 7, 13, 14, 15, 16];
-function commonDeal(n) {
-  const seed = MP.room + '|' + MP.gid + '|c' + MP.life;
+function commonDeal(n, base) {
+  const seed = base || (MP.room + '|' + MP.gid + '|c' + MP.life);
   const flat = emptyFlat();
   let best = null, bestM = -1;
   for (let a = 0; a < MAX_ATTEMPTS; a++) {
@@ -1373,8 +1407,8 @@ function mpFinish() {
 
 // ---- pintar estado de la partida conjunta ----
 function mpRenderScores() {
-  if (mode !== 'mp') return;
-  const rows = mpResults();
+  if (mode !== 'mp' && mode !== 'mg') return;
+  const rows = mode === 'mg' ? mgResults() : mpResults();
   const el = $('mpScores');
   el.className = rows.length >= 4 ? 'n4' : rows.length === 3 ? 'n3' : '';
   const top = Math.max(...rows.map(r => r.score));
@@ -1446,7 +1480,288 @@ function mpBackToRoom() {
 }
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden && MP.client) { MP.client.ensure(); mpSend(); }
+  if (document.hidden) { if (mode === 'mg') mgPersist(); }
+  else if (data.mgMe) { if (MG.client) MG.client.ensure(); else mgConnect(); mgPublish(); }
 });
+window.addEventListener('online', () => { if (data.mgMe) { if (MG.client) MG.client.ensure(); else mgConnect(); } });
+window.addEventListener('pagehide', () => { if (mode === 'mg') mgPersist(); });
+
+// ======================================================================
+//  MARTINA vs GUILLEM — partida larga de dos, que se guarda en el móvil
+// ======================================================================
+// Se juega sin conexión; cuando hay internet, cada móvil publica su puntuación y recibe la del otro.
+const MG_TOPIC = 'bloques-mg-k7q2x9/v1/', MG_KEY = 'bloques_mg', MG_NAMES = { M: 'Martina', G: 'Guillem' };
+const MG_RAMP_MS = 30 * 60 * 1000;          // minutos de juego hasta llegar a la dificultad final
+let mg = null;                               // partida guardada en este móvil
+const MG = { client: null, online: false, connecting: false, retryT: null, tick: null, n: 0, askedMid: 0, rival: null, busy: false, msgText: '', msgUntil: 0 };
+const mgOther = () => data.mgMe === 'M' ? 'G' : 'M';
+
+function mgLoad() {
+  try { const r = localStorage.getItem(MG_KEY); if (r) { const o = JSON.parse(r); if (o && o.mid && Array.isArray(o.grid)) mg = o; } } catch (e) {}
+  try { const r = localStorage.getItem(MG_KEY + '_r'); if (r) MG.rival = JSON.parse(r); } catch (e) {}
+}
+function mgSave() { try { localStorage.setItem(MG_KEY, JSON.stringify(mg)); } catch (e) {} }
+function mgSaveRival() { try { localStorage.setItem(MG_KEY + '_r', JSON.stringify(MG.rival)); } catch (e) {} }
+function mgNew(mid, diff) {
+  mg = { mid, diff, grid: emptyGrid(), pieces: null, score: 0, dealN: 0, lives: LIVES, life: 0, lifeBase: 0, lifeBest: 0,
+         playMs: 0, over: false, et: null, saved: false, reset: false };
+  mgSave();
+}
+const mgBest = () => Math.max(mg.lifeBest, (mode === 'mg' ? score : mg.score) - mg.lifeBase);
+const mgRivalOk = () => !!(MG.rival && mg && MG.rival.mid === mg.mid);
+
+// guarda el estado actual en el móvil (no a mitad de una jugada, para no guardar líneas a medio borrar)
+function mgPersist() {
+  if (mode !== 'mg' || !mg) return;
+  if (locked && !MG.busy) return;
+  mg.grid = grid.map(r => r.slice());
+  mg.score = score; mg.dealN = dealN; mg.over = over;
+  mg.pieces = pieces ? pieces.map(x => x ? SHAPES.indexOf(x) : null) : null;
+  mgSave();
+}
+
+// ---- conexión ----
+function mgMsg() {
+  return JSON.stringify({ v: 1, id: data.mgMe, mid: mg.mid, d: mg.diff, s: mg.score, l: mg.lives, b: mgBest(), o: mg.over ? 1 : 0, et: mg.et, ts: Date.now() });
+}
+function mgPublish() {
+  if (!mg || !data.mgMe || !MG.client || !MG.online) return;
+  if (mode === 'mg') mg.score = score;
+  MG.client.publish(mgMsg());
+}
+function mgOpen(url) {
+  return new Promise(resolve => {
+    const c = new MiniMQTT(url, 'bm_' + data.mgMe + Math.random().toString(36).slice(2, 8), MG_TOPIC + '+', MG_TOPIC + data.mgMe, true, 30000);
+    let done = false, t = null;
+    const fin = ok => { if (done) return; done = true; clearTimeout(t); if (ok) resolve(c); else { c.end(); resolve(null); } };
+    c.onconnect = () => { if (!done) fin(true); else { MG.online = true; mgPublish(); mgRender(); } };
+    c.ondisconnect = () => { if (!done) fin(false); else { MG.online = false; mgRender(); } };
+    c.onmessage = mgOnMessage;
+    t = setTimeout(() => fin(false), 6000);
+    c.start();
+  });
+}
+async function mgConnect() {
+  if (!data.mgMe || MG.client || MG.connecting) return;
+  MG.connecting = true;
+  for (const url of MP_BROKERS) {
+    const c = await mgOpen(url);
+    if (c) { MG.client = c; MG.online = true; MG.connecting = false; mgPublish(); mgRefreshHome(); mgRender(); return; }
+  }
+  MG.connecting = false;
+  clearTimeout(MG.retryT);
+  MG.retryT = setTimeout(mgConnect, 30000);
+}
+function mgOnMessage(topic, text) {
+  const who = topic.slice(-1);
+  if (!data.mgMe || who === data.mgMe || !MG_NAMES[who]) return;
+  let m; try { m = JSON.parse(text); } catch (e) { return; }
+  if (!m || m.v !== 1 || m.id !== who || !Number.isFinite(m.mid) || !Number.isFinite(m.s)) return;
+  const prev = MG.rival;
+  const r = { id: who, mid: Math.floor(m.mid), d: ['F', 'N', 'D'].includes(m.d) ? m.d : 'N', s: Math.max(0, Math.min(1e8, m.s | 0)),
+    l: Number.isInteger(m.l) && m.l >= 0 && m.l <= LIVES ? m.l : LIVES, b: Math.max(0, Math.min(1e8, (m.b || 0) | 0)),
+    o: m.o ? 1 : 0, et: Number.isFinite(m.et) ? m.et : null, ts: Number.isFinite(m.ts) ? m.ts : nowMs(), seen: nowMs() };
+  if (prev && prev.mid === r.mid && r.l < prev.l && r.l > 0 && mg && mg.mid === r.mid) {
+    MG.msgText = MG_NAMES[who] + ' pierde una vida (le quedan ' + r.l + ')'; MG.msgUntil = nowMs() + 3500;
+  }
+  MG.rival = r; mgSaveRival();
+  if (mg && r.mid > mg.mid && MG.askedMid !== r.mid) {                     // el otro ha empezado una partida nueva
+    MG.askedMid = r.mid;
+    setTimeout(() => { if (confirm(MG_NAMES[who] + ' ha empezado una partida nueva.' + (mg.score > 0 ? ' Tu partida actual (' + mg.score + ' puntos) se perderá.' : '') + ' ¿Unirte a ella?')) mgAdopt(r.mid, r.d); }, 60);
+  }
+  mgRefreshHome();
+  if (mode === 'mg') { mgRenderScoresNow(); mgCheckFinish(); mgRender(); }
+}
+
+// ---- home ----
+function mgRefreshHome() {
+  const btn = $('btnMG'); if (!btn) return;
+  const sc = { M: null, G: null };
+  if (data.mgMe && mg) sc[data.mgMe] = (mode === 'mg' ? score : mg.score);
+  if (data.mgMe && mgRivalOk()) sc[mgOther()] = MG.rival.s;
+  ['M', 'G'].forEach(k => {
+    const el = $('mgp' + k);
+    el.querySelector('small').textContent = sc[k] === null ? '—' : sc[k];
+    const o = k === 'M' ? 'G' : 'M';
+    const both = sc.M !== null && sc.G !== null && sc.M !== sc.G;
+    el.classList.toggle('lead', both && sc[k] > sc[o]);
+    el.classList.toggle('trail', both && sc[k] < sc[o]);
+  });
+}
+
+// ---- entrar / reanudar ----
+async function mgEnter() {
+  if (!data.mgMe) { showScreen('mgwho'); return; }
+  if (!mg) {                                  // primera vez: mira si el otro ya tiene una partida empezada
+    const btn = $('btnMG'); btn.disabled = true;
+    mgConnect();
+    for (let i = 0; i < 40 && !(MG.online && i > 8) && !MG.rival; i++) await new Promise(r => setTimeout(r, 100));
+    if (MG.online && !MG.rival) await new Promise(r => setTimeout(r, 700));
+    btn.disabled = false;
+    if (mg) { mgResume(); return; }
+    const r = MG.rival;
+    if (r && r.mid) mgNew(r.mid, r.d); else mgNew(Date.now(), data.diff);
+  }
+  mgResume(); mgConnect();
+}
+function mgAdopt(mid, d) { mgNew(mid, d); if (mode === 'mg') mgResume(); mgPublish(); mgRefreshHome(); }
+function mgNewMatch() { mgNew(Date.now(), data.diff); mgResume(); mgPublish(); }
+function mgResume() {
+  gameTok++;
+  mode = 'mg'; gameDiff = mg.diff;
+  grid = mg.grid.map(r => r.slice()); score = mg.score; dealN = mg.dealN; over = mg.over; locked = false; newRecord = false;
+  pieces = mg.pieces ? mg.pieces.map(i => i === null ? null : SHAPES[i]) : null;
+  weightOverride = null; MG.busy = false;
+  cancelAnimationFrame(raf);
+  gameEl.classList.remove('solo'); gameEl.classList.add('mp');
+  overEl.classList.remove('show', 'mp', 'done'); $('lifeBanner').classList.remove('show');
+  if (mg.reset) { mg.reset = false; grid = emptyGrid(); dealN = 0; pieces = null; }
+  setPalette(Math.floor(score / MP_LEVEL));
+  drawBoard();
+  if (!over && (!pieces || pieces.every(x => x === null))) mgDeal(); else drawTray();
+  mgPersist(); mgRenderScoresNow(); mgRender();
+  showScreen('game');
+  mgStartTick(); mgPublish();
+  if (!over) mgMaybeOver();
+}
+function mgRenderScoresNow() { mpRenderScores(); }
+
+// ---- piezas: las 12 primeras de cada vida son iguales para los dos; después, las de cada uno ----
+function mgDeal() {
+  const n = dealN;
+  if (n < COMMON_DEALS) pieces = commonDeal(n, mg.mid + '|c' + mg.life);
+  else {
+    const t = Math.max(0, Math.min(1, mg.playMs / MG_RAMP_MS)), rp = RAMPS[gameDiff] || RAMPS.N;
+    const x = rp.x[0] + (rp.x[1] - rp.x[0]) * t, bias = rp.b[0] + (rp.b[1] - rp.b[0]) * t;
+    const list = WEIGHT_TABLE.map(w => wAt(w, x));
+    weightOverride = { list, total: list.reduce((a, b) => a + b, 0) };
+    pieces = genDeal(mg.mid + '|' + data.mgMe + '|L' + mg.life, n, [flatBoard()], bias);
+    weightOverride = null;
+  }
+  dealN++;
+  drawTray();
+}
+function mgAfterMove() {
+  if (pieces.every(x => x === null)) mgDeal(); else drawTray();
+  updateScore(); drawBoard();
+  mgPersist(); mgPublish(); mgRefreshHome();
+  mgMaybeOver();
+}
+function mgMaybeOver() {
+  if (over || mode !== 'mg') return;
+  if (locked || MG.busy || !pieces || pieces.every(x => x === null)) return;
+  if (anyMoveLeft()) return;
+  mgLoseLife();
+}
+function mgLoseLife() {
+  mg.lifeBest = Math.max(mg.lifeBest, score - mg.lifeBase);
+  mg.lives--;
+  if (mg.lives <= 0) { mg.lives = 0; mgMyOver(); return; }
+  mg.life++; mg.lifeBase = score; mg.reset = true;
+  MG.busy = true; locked = true;
+  mg.score = score;
+  mgPersist(); mgPublish(); mgRenderScoresNow();
+  const bn = $('lifeBanner');
+  bn.innerHTML = '<b>Pierdes una vida</b><i>' + heartsHTML(mg.lives) + '</i><span>' + (mg.lives === 1 ? 'Te queda 1 vida' : 'Te quedan ' + mg.lives + ' vidas') + '</span>';
+  bn.classList.add('show');
+  const tok = gameTok;
+  setTimeout(() => {
+    if (tok !== gameTok || mode !== 'mg') return;
+    bn.classList.remove('show');
+    grid = emptyGrid(); dealN = 0; pieces = null; mg.reset = false;
+    MG.busy = false; locked = false;
+    drawBoard(); mgDeal();
+    mgPersist(); mgPublish(); mgMaybeOver();
+  }, 2000);
+}
+function mgMyOver() {
+  if (over) return;
+  over = true; mg.et = nowMs(); mg.score = score;
+  mgPersist(); mgPublish(); mgRenderScoresNow(); mgCheckFinish(); mgRender();
+}
+
+// ---- resultados ----
+function mgResults() {
+  const me = data.mgMe, rv = mgRivalOk() ? MG.rival : null;
+  const mk = k => {
+    if (k === me) return { id: k, name: MG_NAMES[k], me: true, score: score, lives: mg.lives, best: mgBest(), et: mg.et, done: over };
+    return { id: k, name: MG_NAMES[k], me: false, score: rv ? rv.s : 0, lives: rv ? rv.l : LIVES, best: rv ? rv.b : 0, et: rv ? rv.et : null, done: !!(rv && rv.o) };
+  };
+  const rows = ['M', 'G'].map(mk);
+  rows.forEach(r => { r.bonus = 0; });
+  if (rows.every(r => r.done)) {
+    const c = rows.filter(r => r.et !== null).sort((a, b) => (b.et - a.et) || (a.id < b.id ? -1 : 1));
+    if (c.length) c[0].bonus = BONUS;
+  }
+  rows.forEach(r => { r.total = r.score + r.bonus; });
+  return rows;
+}
+const mgEnded = () => over && mgRivalOk() && MG.rival.o === 1;
+function mgCheckFinish() {
+  if (!mgEnded() || mg.saved) return;
+  mg.saved = true; mgSave();
+  const rows = mgResults().sort(mpCmp);
+  const winners = rows.filter(r => mpCmp(r, rows[0]) === 0);
+  const mine = rows.find(r => r.me);
+  const w = winners.length > 1 ? 2 : (winners[0].me ? 1 : 0);
+  data.games.push({ s: mine.total, d: Date.now(), df: gameDiff, mp: { n: [MG_NAMES[mgOther()]], w } });
+  if (data.games.length > 100) data.games = data.games.slice(-100);
+  saveData();
+}
+const mgAgo = ms => {
+  const m = Math.max(0, Math.round(ms / 60000));
+  if (m < 1) return 'hace un momento';
+  if (m < 60) return 'hace ' + m + ' min';
+  const h = Math.round(m / 60);
+  if (h < 36) return 'hace ' + h + ' h';
+  return 'hace ' + Math.round(h / 24) + ' días';
+};
+function mgRender() {
+  if (mode !== 'mg' || !mg) return;
+  const rv = mgRivalOk() ? MG.rival : null, on = MG.online, name = MG_NAMES[mgOther()];
+  let text;
+  if (nowMs() < MG.msgUntil) text = MG.msgText;
+  else if (!rv) text = on ? 'Esperando a ' + name + '…' : 'Sin conexión · se sincronizará al volver';
+  else if (nowMs() - rv.seen < 12000 && on) text = name + ' está jugando ahora';
+  else text = name + ' · última vez ' + mgAgo(nowMs() - rv.ts) + (on ? '' : ' · sin conexión');
+  $('mpStatusText').textContent = text;
+  $('mpReward').textContent = '';
+  $('btnDrop').style.display = 'none';
+  mpRenderScores();
+  if (over) {
+    const ended = mgEnded();
+    const rows = mgResults().sort(ended ? mpCmp : (a, b) => b.score - a.score);
+    const winners = rows.filter(r => mpCmp(r, rows[0]) === 0);
+    overEl.classList.add('mp'); overEl.classList.toggle('done', ended);
+    $('btnAgainMp').textContent = 'Nueva partida';
+    $('overTitle').textContent = ended ? 'FIN DE PARTIDA' : 'HAS TERMINADO';
+    $('overInfo').textContent = 'MARTINA VS GUILLEM  ·  ' + DIFFS[gameDiff].toUpperCase();
+    $('overList').innerHTML = rows.map(r => {
+      const win = ended && winners.includes(r);
+      let tag = '';
+      if (ended) { if (win) tag = winners.length === 1 ? '<span class="tagw w">GANADOR</span>' : '<span class="tagw t">EMPATE</span>'; }
+      else tag = '<span class="tagw ' + (r.done ? 'l' : 't') + '">' + (r.done ? 'TERMINÓ' : 'JUGANDO') + '</span>';
+      const right = ended
+        ? '<div class="ot"><b>' + r.total + '</b><small>' + r.score + (r.bonus ? ' + ' + r.bonus + ' bonus' : '') + '</small></div>'
+        : '<div class="ot"><b>' + r.score + '</b></div>';
+      return '<div class="orow' + (win ? ' top' : '') + '"><div class="nm"><span>' + esc(r.name) + (r.me ? ' (tú)' : '') + '</span>' + tag + '</div>' + right + '</div>';
+    }).join('');
+    $('recMsg').textContent = ended
+      ? (winners.length > 1 ? 'Empate' : (winners[0].me ? '¡Has ganado!' : 'Gana ' + winners[0].name))
+      : 'Cuando ' + name + ' termine, se verá el resultado';
+    overEl.classList.add('show');
+  }
+}
+function mgStartTick() {
+  clearInterval(MG.tick);
+  MG.tick = setInterval(() => {
+    if (mode !== 'mg' || !mg || !$('game').classList.contains('active') || document.hidden) return;
+    if (!over) { mg.playMs += 1000; }
+    MG.n++;
+    if (MG.n % 5 === 0) { mgPersist(); mgPublish(); }
+    mgRender();
+  }, 1000);
+}
 
 // ---------- récords ----------
 function fmtDate(ms) {
@@ -1461,6 +1776,9 @@ function rowHTML(g) {
          '</span></div><div class="rs">' + tag + '<b>' + g.s + '</b></div></div>';
 }
 function renderRecords() {
+  const w = $('btnMgWho');
+  w.style.display = data.mgMe ? '' : 'none';
+  if (data.mgMe) w.textContent = 'Martina vs Guillem: soy ' + MG_NAMES[data.mgMe] + ' (cambiar)';
   const avg = data.played ? Math.round(data.total / data.played) : 0;
   const top = data.games.filter(g => !g.mp).sort((a, b) => b.s - a.s).slice(0, 5);
   $('paneP').innerHTML =
@@ -1531,9 +1849,22 @@ $('btnDrop').addEventListener('click', () => {
   const id = $('btnDrop').dataset.id;
   if (id && !MP.drops.includes(id)) { MP.drops.push(id); mpSend(); mpCheckFinish(); mpRender(); }
 });
+$('btnMG').addEventListener('click', mgEnter);
+function mgChoose(k) { data.mgMe = k; saveData(); mgConnect(); mgEnter(); }
+$('whoM').addEventListener('click', () => mgChoose('M'));
+$('whoG').addEventListener('click', () => mgChoose('G'));
+$('btnMgWho').addEventListener('click', () => {
+  if (mg && !confirm('Se borrará la partida de Martina vs Guillem guardada en este móvil. ¿Continuar?')) return;
+  try { localStorage.removeItem(MG_KEY); localStorage.removeItem(MG_KEY + '_r'); } catch (e) {}
+  mg = null; MG.rival = null; clearInterval(MG.tick);
+  if (MG.client) { try { MG.client.end(); } catch (e) {} MG.client = null; MG.online = false; }
+  data.mgMe = null; saveData(); mgRefreshHome();
+  showScreen('mgwho');
+});
 $('btnRecords').addEventListener('click', () => { renderRecords(); showScreen('records'); });
 document.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', () => showScreen(b.dataset.go)));
 $('gameBack').addEventListener('click', () => {
+  if (mode === 'mg') { mgPersist(); gameTok++; clearInterval(MG.tick); showScreen('home'); return; }
   if (mode === 'mp') {
     if (MP.phase !== 'ended' && !confirm('¿Salir de la partida? Los demás podrán seguir sin ti.')) return;
     mpLeave('');
@@ -1544,14 +1875,15 @@ $('gameBack').addEventListener('click', () => {
   showScreen('home');
 });
 $('btnAgain').addEventListener('click', newSolo);
-$('btnAgainMp').addEventListener('click', mpBackToRoom);
+$('btnAgainMp').addEventListener('click', () => { if (mode === 'mg') mgNewMatch(); else mpBackToRoom(); });
 $('btnMenu').addEventListener('click', () => {
+  if (mode === 'mg') { mgPersist(); gameTok++; clearInterval(MG.tick); showScreen('home'); return; }
   if (mode === 'mp') { mpLeave(''); showScreen('home'); return; }
   gameTok++; showScreen('home');
 });
 $('btnReset').addEventListener('click', () => {
   if (!confirm('¿Borrar todos tus récords y el historial de partidas?')) return;
-  data = { bests: { F: 0, N: 0, D: 0 }, played: 0, total: 0, games: [], diff: data.diff, theme: data.theme, name: data.name };
+  data = { bests: { F: 0, N: 0, D: 0 }, played: 0, total: 0, games: [], diff: data.diff, theme: data.theme, name: data.name, mgMe: data.mgMe };
   saveData();
   renderRecords();
 });
@@ -1614,7 +1946,9 @@ grid = emptyGrid();
 pieces = null; score = 0; best = data.bests.N; locked = false; over = true;
 drawDiff();
 applyTheme();
+mgLoad();
 showScreen('home');
+if (data.mgMe) mgConnect();
 
 // ---------- modo offline ----------
 if ('serviceWorker' in navigator) {
