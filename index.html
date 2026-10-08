@@ -236,6 +236,8 @@
   .orow b { font-size: 26px; font-weight: 600; font-variant-numeric: tabular-nums; }
   .orow.top .nm { font-weight: 700; }
   #btnAgainMp { display: none; }
+  #btnMgRestart { display: none; }
+  #over.mp.mgg #btnMgRestart { display: block; }
   #over.mp.done #btnAgainMp { display: block; }
   #over.mp #btnAgain { display: none; }
 
@@ -327,6 +329,7 @@
       <button class="btn ghost" id="btnDrop"></button>
       <div class="sp"></div>
       <button class="btn" id="btnAgain">Nueva partida</button>
+      <button class="btn" id="btnMgRestart">Reiniciar desde el inicio</button>
       <button class="btn" id="btnAgainMp">Volver a la sala</button>
       <button class="btn ghost" id="btnMenu">Menú</button>
     </div>
@@ -548,6 +551,7 @@ const cells = [];
 
 function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.toggle('active', s.id === id));
+  if (id !== 'game') overEl.classList.remove('mgg');
   if (id === 'home') { setPalette(0); if (typeof mgRefreshHome === 'function') mgRefreshHome(); }
 }
 
@@ -841,7 +845,7 @@ class MiniMQTT {
     this.url = url; this.clientId = clientId; this.topic = topic;
     this.pubTopic = pubTopic || topic; this.retain = !!retain; this.maxDelay = maxDelay || 2000; this.retryN = 0;
     this.ws = null; this.buf = new Uint8Array(0); this.closed = false; this.connected = false;
-    this.pingT = null; this.retryT = null; this.pid = 1;
+    this.pingT = null; this.retryT = null; this.connT = null; this.lastRx = 0; this.pid = 1;
     this.onconnect = null; this.ondisconnect = null; this.onmessage = null;
   }
   start() { this.closed = false; this._connect(); }
@@ -851,7 +855,11 @@ class MiniMQTT {
     let ws;
     try { ws = new WebSocket(this.url, 'mqtt'); } catch (e) { this._lost(); return; }
     ws.binaryType = 'arraybuffer';
-    this.ws = ws; this.buf = new Uint8Array(0);
+    this.ws = ws; this.buf = new Uint8Array(0); this.lastRx = Date.now();
+    clearTimeout(this.connT);
+    this.connT = setTimeout(() => {            // conexión colgada (típico al cambiar de wifi a datos): se descarta y se reintenta
+      if (this.ws === ws && !this.connected) { this.ws = null; try { ws.onclose = null; ws.close(); } catch (e) {} this._lost(); }
+    }, 10000);
     ws.onopen = () => {
       if (this.ws !== ws) return;
       const body = u8cat(u8cat(u8cat(mqttStr('MQTT'), Uint8Array.from([4, 2, 0, 45])), mqttStr(this.clientId)), new Uint8Array(0));
@@ -870,6 +878,7 @@ class MiniMQTT {
   }
   _send(u8) { try { if (this.ws && this.ws.readyState === 1) { this.ws.send(u8); return true; } } catch (e) {} return false; }
   _data(chunk) {
+    this.lastRx = Date.now();
     this.buf = u8cat(this.buf, chunk);
     for (;;) {
       const b = this.buf;
@@ -890,9 +899,14 @@ class MiniMQTT {
       this.pid = (this.pid % 65000) + 1;
       this._send(mqttPkt(0x82, sub));
       clearInterval(this.pingT);
-      this.pingT = setInterval(() => this._send(Uint8Array.from([0xC0, 0])), 20000);
+      this.pingT = setInterval(() => {
+        if (Date.now() - this.lastRx > 50000) {   // el servidor no contesta: la conexión está muerta aunque parezca abierta
+          const ws = this.ws; this.ws = null; try { ws.onclose = null; ws.close(); } catch (e) {} this._lost(); return;
+        }
+        this._send(Uint8Array.from([0xC0, 0]));
+      }, 15000);
     } else if (type === 9) {                            // SUBACK
-      this.connected = true; this.retryN = 0;
+      this.connected = true; this.retryN = 0; clearTimeout(this.connT);
       if (this.onconnect) this.onconnect();
     } else if (type === 3) {                            // PUBLISH
       const qos = (flags >> 1) & 3;
@@ -913,7 +927,7 @@ class MiniMQTT {
   }
   end() {
     this.closed = true; this.connected = false;
-    clearTimeout(this.retryT); clearInterval(this.pingT);
+    clearTimeout(this.retryT); clearTimeout(this.connT); clearInterval(this.pingT);
     const ws = this.ws; this.ws = null;
     try { if (ws) { ws.onclose = null; ws.onmessage = null; if (ws.readyState === 1) ws.send(Uint8Array.from([0xE0, 0])); ws.close(); } } catch (e) {}
   }
@@ -1537,17 +1551,23 @@ function mgOpen(url) {
     c.onconnect = () => { if (!done) fin(true); else { MG.online = true; mgPublish(); mgRender(); } };
     c.ondisconnect = () => { if (!done) fin(false); else { MG.online = false; mgRender(); } };
     c.onmessage = mgOnMessage;
-    t = setTimeout(() => fin(false), 6000);
+    t = setTimeout(() => fin(false), 9000);
     c.start();
   });
 }
+const MG_BROKERS = MP_BROKERS.concat(['wss://mqtt.eclipseprojects.io:443/mqtt']);   // el de 443 suele pasar bien en datos móviles
 async function mgConnect() {
   if (!data.mgMe || MG.client || MG.connecting) return;
   MG.connecting = true;
-  for (const url of MP_BROKERS) {
-    const c = await mgOpen(url);
-    if (c) { MG.client = c; MG.online = true; MG.connecting = false; mgPublish(); mgRefreshHome(); mgRender(); return; }
-  }
+  // se prueban todos a la vez y gana el primero que conecta (en datos móviles unos puertos pueden estar bloqueados)
+  const win = await new Promise(resolve => {
+    let left = MG_BROKERS.length, got = null;
+    MG_BROKERS.forEach(url => mgOpen(url).then(c => {
+      if (c && !got) { got = c; resolve(c); } else if (c) c.end();
+      if (--left === 0 && !got) resolve(null);
+    }));
+  });
+  if (win) { MG.client = win; MG.online = true; MG.connecting = false; mgPublish(); mgRefreshHome(); mgRender(); return; }
   MG.connecting = false;
   clearTimeout(MG.retryT);
   MG.retryT = setTimeout(mgConnect, 30000);
@@ -1605,6 +1625,11 @@ async function mgEnter() {
   mgResume(); mgConnect();
 }
 function mgAdopt(mid, d) { mgNew(mid, d); if (mode === 'mg') mgResume(); mgPublish(); mgRefreshHome(); }
+function mgRestart() {                         // solo para Guillem: vuelve a empezar su partida desde cero
+  Object.assign(mg, { grid: emptyGrid(), pieces: null, score: 0, dealN: 0, lives: LIVES, life: mg.life + 1, lifeBase: 0, lifeBest: 0,
+                      playMs: 0, over: false, et: null, saved: false, reset: false });
+  mgSave(); mgResume(); mgPublish(); mgRefreshHome();
+}
 function mgNewMatch() { mgNew(Date.now(), data.diff); mgResume(); mgPublish(); }
 function mgResume() {
   gameTok++;
@@ -1614,7 +1639,7 @@ function mgResume() {
   weightOverride = null; MG.busy = false;
   cancelAnimationFrame(raf);
   gameEl.classList.remove('solo'); gameEl.classList.add('mp');
-  overEl.classList.remove('show', 'mp', 'done'); $('lifeBanner').classList.remove('show');
+  overEl.classList.remove('show', 'mp', 'done', 'mgg'); $('lifeBanner').classList.remove('show');
   if (mg.reset) { mg.reset = false; grid = emptyGrid(); dealN = 0; pieces = null; }
   setPalette(Math.floor(score / MP_LEVEL));
   drawBoard();
@@ -1732,7 +1757,7 @@ function mgRender() {
     const ended = mgEnded();
     const rows = mgResults().sort(ended ? mpCmp : (a, b) => b.score - a.score);
     const winners = rows.filter(r => mpCmp(r, rows[0]) === 0);
-    overEl.classList.add('mp'); overEl.classList.toggle('done', ended);
+    overEl.classList.add('mp'); overEl.classList.toggle('done', ended); overEl.classList.toggle('mgg', data.mgMe === 'G');
     $('btnAgainMp').textContent = 'Nueva partida';
     $('overTitle').textContent = ended ? 'FIN DE PARTIDA' : 'HAS TERMINADO';
     $('overInfo').textContent = 'MARTINA VS GUILLEM  ·  ' + DIFFS[gameDiff].toUpperCase();
@@ -1875,6 +1900,9 @@ $('gameBack').addEventListener('click', () => {
   showScreen('home');
 });
 $('btnAgain').addEventListener('click', newSolo);
+$('btnMgRestart').addEventListener('click', () => {
+  if (mode === 'mg' && data.mgMe === 'G' && over && confirm('¿Reiniciar tu partida desde el inicio? Tus puntos volverán a 0.')) mgRestart();
+});
 $('btnAgainMp').addEventListener('click', () => { if (mode === 'mg') mgNewMatch(); else mpBackToRoom(); });
 $('btnMenu').addEventListener('click', () => {
   if (mode === 'mg') { mgPersist(); gameTok++; clearInterval(MG.tick); showScreen('home'); return; }
