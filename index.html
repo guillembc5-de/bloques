@@ -236,8 +236,6 @@
   .orow b { font-size: 26px; font-weight: 600; font-variant-numeric: tabular-nums; }
   .orow.top .nm { font-weight: 700; }
   #btnAgainMp { display: none; }
-  #btnMgRestart { display: none; }
-  #over.mp.mgg #btnMgRestart { display: block; }
   #over.mp.done #btnAgainMp { display: block; }
   #over.mp #btnAgain { display: none; }
 
@@ -329,7 +327,6 @@
       <button class="btn ghost" id="btnDrop"></button>
       <div class="sp"></div>
       <button class="btn" id="btnAgain">Nueva partida</button>
-      <button class="btn" id="btnMgRestart">Reiniciar desde el inicio</button>
       <button class="btn" id="btnAgainMp">Volver a la sala</button>
       <button class="btn ghost" id="btnMenu">Menú</button>
     </div>
@@ -551,7 +548,6 @@ const cells = [];
 
 function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.toggle('active', s.id === id));
-  if (id !== 'game') overEl.classList.remove('mgg');
   if (id === 'home') { setPalette(0); if (typeof mgRefreshHome === 'function') mgRefreshHome(); }
 }
 
@@ -920,6 +916,21 @@ class MiniMQTT {
   publish(text) {
     if (!this.connected) return false;
     return this._send(mqttPkt(0x30 | (this.retain ? 1 : 0), u8cat(mqttStr(this.pubTopic), new TextEncoder().encode(text))));
+  }
+  reset() {                                     // tira la conexión actual y abre otra ya (útil tras dormir el móvil o cambiar de red)
+    if (this.closed) return;
+    clearTimeout(this.retryT); clearTimeout(this.connT); clearInterval(this.pingT);
+    const ws = this.ws; this.ws = null; this.connected = false;
+    try { if (ws) { ws.onclose = null; ws.onmessage = null; ws.close(); } } catch (e) {}
+    if (this.ondisconnect) this.ondisconnect();
+    this.retryN = 0; this._connect();
+  }
+  probe(ms) {                                   // comprueba que la conexión sigue viva; si no contesta, la rehace
+    if (this.closed) return;
+    if (!this.ws || this.ws.readyState !== 1 || !this.connected) { this.reset(); return; }
+    const t0 = Date.now();
+    this._send(Uint8Array.from([0xC0, 0]));
+    setTimeout(() => { if (!this.closed && this.lastRx < t0) this.reset(); }, ms || 3500);
   }
   ensure() {
     if (this.closed) return;
@@ -1495,9 +1506,11 @@ function mpBackToRoom() {
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden && MP.client) { MP.client.ensure(); mpSend(); }
   if (document.hidden) { if (mode === 'mg') mgPersist(); }
-  else if (data.mgMe) { if (MG.client) MG.client.ensure(); else mgConnect(); mgPublish(); }
+  else if (data.mgMe) { mgConnect(); mgProbe(); mgPublish(); }
 });
-window.addEventListener('online', () => { if (data.mgMe) { if (MG.client) MG.client.ensure(); else mgConnect(); } });
+window.addEventListener('online', () => { if (data.mgMe) { mgConnect(); MG.clients.forEach(c => c.reset()); } });
+window.addEventListener('pageshow', () => { if (data.mgMe) { mgConnect(); mgProbe(); } });
+if (navigator.connection && navigator.connection.addEventListener) navigator.connection.addEventListener('change', () => { if (data.mgMe) mgProbe(); });
 window.addEventListener('pagehide', () => { if (mode === 'mg') mgPersist(); });
 
 // ======================================================================
@@ -1507,18 +1520,18 @@ window.addEventListener('pagehide', () => { if (mode === 'mg') mgPersist(); });
 const MG_TOPIC = 'bloques-mg-k7q2x9/v1/', MG_KEY = 'bloques_mg', MG_NAMES = { M: 'Martina', G: 'Guillem' };
 const MG_RAMP_MS = 30 * 60 * 1000;          // minutos de juego hasta llegar a la dificultad final
 let mg = null;                               // partida guardada en este móvil
-const MG = { client: null, online: false, connecting: false, retryT: null, tick: null, n: 0, askedMid: 0, rival: null, busy: false, msgText: '', msgUntil: 0 };
+const MG = { clients: [], online: false, tick: null, noticeT: null, n: 0, askedMid: 0, rival: null, busy: false, msgText: '', msgUntil: 0 };
 const mgOther = () => data.mgMe === 'M' ? 'G' : 'M';
 
 function mgLoad() {
-  try { const r = localStorage.getItem(MG_KEY); if (r) { const o = JSON.parse(r); if (o && o.mid && Array.isArray(o.grid)) mg = o; } } catch (e) {}
+  try { const r = localStorage.getItem(MG_KEY); if (r) { const o = JSON.parse(r); if (o && o.mid && Array.isArray(o.grid)) { mg = o; if (mg.clr === undefined) mg.clr = mgClearAt(mg.score); } } } catch (e) {}
   try { const r = localStorage.getItem(MG_KEY + '_r'); if (r) MG.rival = JSON.parse(r); } catch (e) {}
 }
 function mgSave() { try { localStorage.setItem(MG_KEY, JSON.stringify(mg)); } catch (e) {} }
 function mgSaveRival() { try { localStorage.setItem(MG_KEY + '_r', JSON.stringify(MG.rival)); } catch (e) {} }
 function mgNew(mid, diff) {
   mg = { mid, diff, grid: emptyGrid(), pieces: null, score: 0, dealN: 0, lives: LIVES, life: 0, lifeBase: 0, lifeBest: 0,
-         playMs: 0, over: false, et: null, saved: false, reset: false };
+         playMs: 0, over: false, et: null, saved: false, reset: false, clr: 0 };
   mgSave();
 }
 const mgBest = () => Math.max(mg.lifeBest, (mode === 'mg' ? score : mg.score) - mg.lifeBase);
@@ -1535,49 +1548,41 @@ function mgPersist() {
 }
 
 // ---- conexión ----
+// Cada móvil se conecta a TODOS los servidores a la vez y publica en todos: así, aunque uno vaya por wifi y el otro por datos
+// (y a uno le bloqueen un puerto), siempre comparten al menos un servidor y ven la misma partida.
+const MG_BROKERS = MP_BROKERS.concat(['wss://mqtt.eclipseprojects.io:443/mqtt']);
+const mgOnline = () => MG.clients.some(c => c.connected);
 function mgMsg() {
   return JSON.stringify({ v: 1, id: data.mgMe, mid: mg.mid, d: mg.diff, s: mg.score, l: mg.lives, b: mgBest(), o: mg.over ? 1 : 0, et: mg.et, ts: Date.now() });
 }
 function mgPublish() {
-  if (!mg || !data.mgMe || !MG.client || !MG.online) return;
+  if (!mg || !data.mgMe) return;
   if (mode === 'mg') mg.score = score;
-  MG.client.publish(mgMsg());
+  const t = mgMsg();
+  MG.clients.forEach(c => { if (c.connected) c.publish(t); });
 }
-function mgOpen(url) {
-  return new Promise(resolve => {
+function mgConnect() {
+  if (!data.mgMe) return;
+  if (MG.clients.length) { MG.clients.forEach(c => c.ensure()); return; }
+  MG.clients = MG_BROKERS.map(url => {
     const c = new MiniMQTT(url, 'bm_' + data.mgMe + Math.random().toString(36).slice(2, 8), MG_TOPIC + '+', MG_TOPIC + data.mgMe, true, 30000);
-    let done = false, t = null;
-    const fin = ok => { if (done) return; done = true; clearTimeout(t); if (ok) resolve(c); else { c.end(); resolve(null); } };
-    c.onconnect = () => { if (!done) fin(true); else { MG.online = true; mgPublish(); mgRender(); } };
-    c.ondisconnect = () => { if (!done) fin(false); else { MG.online = false; mgRender(); } };
+    c.onconnect = () => { MG.online = true; mgPublish(); mgRefreshHome(); mgRender(); };
+    c.ondisconnect = () => { MG.online = mgOnline(); mgRender(); };
     c.onmessage = mgOnMessage;
-    t = setTimeout(() => fin(false), 9000);
     c.start();
+    return c;
   });
 }
-const MG_BROKERS = MP_BROKERS.concat(['wss://mqtt.eclipseprojects.io:443/mqtt']);   // el de 443 suele pasar bien en datos móviles
-async function mgConnect() {
-  if (!data.mgMe || MG.client || MG.connecting) return;
-  MG.connecting = true;
-  // se prueban todos a la vez y gana el primero que conecta (en datos móviles unos puertos pueden estar bloqueados)
-  const win = await new Promise(resolve => {
-    let left = MG_BROKERS.length, got = null;
-    MG_BROKERS.forEach(url => mgOpen(url).then(c => {
-      if (c && !got) { got = c; resolve(c); } else if (c) c.end();
-      if (--left === 0 && !got) resolve(null);
-    }));
-  });
-  if (win) { MG.client = win; MG.online = true; MG.connecting = false; mgPublish(); mgRefreshHome(); mgRender(); return; }
-  MG.connecting = false;
-  clearTimeout(MG.retryT);
-  MG.retryT = setTimeout(mgConnect, 30000);
-}
+const mgProbe = () => MG.clients.forEach(c => c.probe());
 function mgOnMessage(topic, text) {
   const who = topic.slice(-1);
   if (!data.mgMe || who === data.mgMe || !MG_NAMES[who]) return;
   let m; try { m = JSON.parse(text); } catch (e) { return; }
   if (!m || m.v !== 1 || m.id !== who || !Number.isFinite(m.mid) || !Number.isFinite(m.s)) return;
   const prev = MG.rival;
+  const ts0 = Number.isFinite(m.ts) ? m.ts : 0;
+  if (prev && ts0 < prev.ts) return;                                         // mensaje viejo (retenido en otro servidor)
+  if (prev && ts0 === prev.ts && Math.floor(m.mid) === prev.mid) { prev.seen = nowMs(); return; }   // el mismo, llegado por otro servidor
   const r = { id: who, mid: Math.floor(m.mid), d: ['F', 'N', 'D'].includes(m.d) ? m.d : 'N', s: Math.max(0, Math.min(1e8, m.s | 0)),
     l: Number.isInteger(m.l) && m.l >= 0 && m.l <= LIVES ? m.l : LIVES, b: Math.max(0, Math.min(1e8, (m.b || 0) | 0)),
     o: m.o ? 1 : 0, et: Number.isFinite(m.et) ? m.et : null, ts: Number.isFinite(m.ts) ? m.ts : nowMs(), seen: nowMs() };
@@ -1585,7 +1590,9 @@ function mgOnMessage(topic, text) {
     MG.msgText = MG_NAMES[who] + ' pierde una vida (le quedan ' + r.l + ')'; MG.msgUntil = nowMs() + 3500;
   }
   MG.rival = r; mgSaveRival();
-  if (mg && r.mid > mg.mid && MG.askedMid !== r.mid) {                     // el otro ha empezado una partida nueva
+  if (mg && r.mid > mg.mid && (mg.score === 0 || (mg.over && mg.saved))) {  // el otro ha empezado una partida nueva y la mía no se pierde nada: me uno sola
+    mgAdopt(r.mid, r.d);
+  } else if (mg && r.mid > mg.mid && MG.askedMid !== r.mid) {
     MG.askedMid = r.mid;
     setTimeout(() => { if (confirm(MG_NAMES[who] + ' ha empezado una partida nueva.' + (mg.score > 0 ? ' Tu partida actual (' + mg.score + ' puntos) se perderá.' : '') + ' ¿Unirte a ella?')) mgAdopt(r.mid, r.d); }, 60);
   }
@@ -1612,6 +1619,7 @@ function mgRefreshHome() {
 // ---- entrar / reanudar ----
 async function mgEnter() {
   if (!data.mgMe) { showScreen('mgwho'); return; }
+  MG.askedMid = 0;
   if (!mg) {                                  // primera vez: mira si el otro ya tiene una partida empezada
     const btn = $('btnMG'); btn.disabled = true;
     mgConnect();
@@ -1625,11 +1633,6 @@ async function mgEnter() {
   mgResume(); mgConnect();
 }
 function mgAdopt(mid, d) { mgNew(mid, d); if (mode === 'mg') mgResume(); mgPublish(); mgRefreshHome(); }
-function mgRestart() {                         // solo para Guillem: vuelve a empezar su partida desde cero
-  Object.assign(mg, { grid: emptyGrid(), pieces: null, score: 0, dealN: 0, lives: LIVES, life: mg.life + 1, lifeBase: 0, lifeBest: 0,
-                      playMs: 0, over: false, et: null, saved: false, reset: false });
-  mgSave(); mgResume(); mgPublish(); mgRefreshHome();
-}
 function mgNewMatch() { mgNew(Date.now(), data.diff); mgResume(); mgPublish(); }
 function mgResume() {
   gameTok++;
@@ -1639,7 +1642,7 @@ function mgResume() {
   weightOverride = null; MG.busy = false;
   cancelAnimationFrame(raf);
   gameEl.classList.remove('solo'); gameEl.classList.add('mp');
-  overEl.classList.remove('show', 'mp', 'done', 'mgg'); $('lifeBanner').classList.remove('show');
+  overEl.classList.remove('show', 'mp', 'done'); $('lifeBanner').classList.remove('show');
   if (mg.reset) { mg.reset = false; grid = emptyGrid(); dealN = 0; pieces = null; }
   setPalette(Math.floor(score / MP_LEVEL));
   drawBoard();
@@ -1666,9 +1669,19 @@ function mgDeal() {
   dealN++;
   drawTray();
 }
+// En Difícil el tablero se vacía a los 200, 500, 1000, 2000, 3000… puntos (y luego cada 1000) para poder llegar lejos
+const mgClearAt = v => v < 200 ? 0 : v < 500 ? 200 : v < 1000 ? 500 : Math.floor(v / 1000) * 1000;
+function mgNotice(t) {
+  const bn = $('lifeBanner'); bn.innerHTML = '<b>' + t + '</b>'; bn.classList.add('show');
+  clearTimeout(MG.noticeT); MG.noticeT = setTimeout(() => bn.classList.remove('show'), 1300);
+}
 function mgAfterMove() {
   if (pieces.every(x => x === null)) mgDeal(); else drawTray();
-  updateScore(); drawBoard();
+  updateScore();
+  if (mg.diff === 'D' && !over && mgClearAt(score) > (mg.clr || 0)) {
+    mg.clr = mgClearAt(score); grid = emptyGrid(); mgNotice('Tablero limpio');
+  }
+  drawBoard();
   mgPersist(); mgPublish(); mgRefreshHome();
   mgMaybeOver();
 }
@@ -1679,6 +1692,7 @@ function mgMaybeOver() {
   mgLoseLife();
 }
 function mgLoseLife() {
+  clearTimeout(MG.noticeT);
   mg.lifeBest = Math.max(mg.lifeBest, score - mg.lifeBase);
   mg.lives--;
   if (mg.lives <= 0) { mg.lives = 0; mgMyOver(); return; }
@@ -1746,6 +1760,8 @@ function mgRender() {
   const rv = mgRivalOk() ? MG.rival : null, on = MG.online, name = MG_NAMES[mgOther()];
   let text;
   if (nowMs() < MG.msgUntil) text = MG.msgText;
+  else if (!rv && MG.rival && MG.rival.mid < mg.mid) text = 'Esperando a que ' + name + ' abra la partida nueva';
+  else if (!rv && MG.rival) text = name + ' tiene otra partida distinta';
   else if (!rv) text = on ? 'Esperando a ' + name + '…' : 'Sin conexión · se sincronizará al volver';
   else if (nowMs() - rv.seen < 12000 && on) text = name + ' está jugando ahora';
   else text = name + ' · última vez ' + mgAgo(nowMs() - rv.ts) + (on ? '' : ' · sin conexión');
@@ -1757,7 +1773,7 @@ function mgRender() {
     const ended = mgEnded();
     const rows = mgResults().sort(ended ? mpCmp : (a, b) => b.score - a.score);
     const winners = rows.filter(r => mpCmp(r, rows[0]) === 0);
-    overEl.classList.add('mp'); overEl.classList.toggle('done', ended); overEl.classList.toggle('mgg', data.mgMe === 'G');
+    overEl.classList.add('mp'); overEl.classList.toggle('done', ended);
     $('btnAgainMp').textContent = 'Nueva partida';
     $('overTitle').textContent = ended ? 'FIN DE PARTIDA' : 'HAS TERMINADO';
     $('overInfo').textContent = 'MARTINA VS GUILLEM  ·  ' + DIFFS[gameDiff].toUpperCase();
@@ -1784,6 +1800,7 @@ function mgStartTick() {
     if (!over) { mg.playMs += 1000; }
     MG.n++;
     if (MG.n % 5 === 0) { mgPersist(); mgPublish(); }
+    if (MG.n % 20 === 0) mgProbe();
     mgRender();
   }, 1000);
 }
@@ -1882,7 +1899,7 @@ $('btnMgWho').addEventListener('click', () => {
   if (mg && !confirm('Se borrará la partida de Martina vs Guillem guardada en este móvil. ¿Continuar?')) return;
   try { localStorage.removeItem(MG_KEY); localStorage.removeItem(MG_KEY + '_r'); } catch (e) {}
   mg = null; MG.rival = null; clearInterval(MG.tick);
-  if (MG.client) { try { MG.client.end(); } catch (e) {} MG.client = null; MG.online = false; }
+  MG.clients.forEach(c => { try { c.end(); } catch (e) {} }); MG.clients = []; MG.online = false;
   data.mgMe = null; saveData(); mgRefreshHome();
   showScreen('mgwho');
 });
@@ -1900,9 +1917,6 @@ $('gameBack').addEventListener('click', () => {
   showScreen('home');
 });
 $('btnAgain').addEventListener('click', newSolo);
-$('btnMgRestart').addEventListener('click', () => {
-  if (mode === 'mg' && data.mgMe === 'G' && over && confirm('¿Reiniciar tu partida desde el inicio? Tus puntos volverán a 0.')) mgRestart();
-});
 $('btnAgainMp').addEventListener('click', () => { if (mode === 'mg') mgNewMatch(); else mpBackToRoom(); });
 $('btnMenu').addEventListener('click', () => {
   if (mode === 'mg') { mgPersist(); gameTok++; clearInterval(MG.tick); showScreen('home'); return; }
