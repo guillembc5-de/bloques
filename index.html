@@ -151,6 +151,17 @@
   #mpScores .me span { color: var(--block); opacity: 1; }
   #mpScores .hh { font-style: normal; font-size: 12px; letter-spacing: 2px; line-height: 1.1; color: #d9534f; opacity: 1; }
   #mpScores .hh u { text-decoration: none; opacity: .22; }
+  #mgRank { display: none; flex-flow: row wrap; gap: 4px 6px; width: min(92vw, 340px); margin: 14px 0 0; }
+  #mgRank small { flex-basis: 100%; font-size: 9px; letter-spacing: .22em; text-transform: uppercase; opacity: .38; text-align: center; font-weight: 600; line-height: 11px; }
+  #mgRank .rk { flex: 1 1 0; min-width: 0; display: flex; align-items: center; gap: 6px; padding: 4px 8px 4px 9px; border-radius: 9px; background: rgba(150,156,168,.14); }
+  #mgRank .rk.p1 { background: linear-gradient(90deg, rgba(201,168,92,.32), rgba(201,168,92,.10)); }
+  #mgRank .rk.p2 { background: linear-gradient(90deg, rgba(150,156,168,.28), rgba(150,156,168,.08)); }
+  #mgRank .ps { font-size: 16px; font-weight: 700; width: 11px; text-align: center; font-variant-numeric: tabular-nums; }
+  #mgRank .nm { flex: 1; font-size: 11px; letter-spacing: .07em; text-transform: uppercase; font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #mgRank .me .nm { color: var(--block); }
+  #mgRank .ar { font-size: 9px; font-weight: 700; letter-spacing: 0; white-space: nowrap; }
+  #mgRank .ar.up { color: #5fae7f; } #mgRank .ar.dn { color: #d9776d; }
+  #mgRank .wn { font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; min-width: 24px; text-align: center; border-radius: 7px; background: rgba(0,0,0,.07); line-height: 22px; }
   #lifeBanner {
     position: absolute; inset: 0; z-index: 6; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
     background: var(--overlay); border-radius: 6px; text-align: center; pointer-events: none;
@@ -313,6 +324,7 @@
       <div><span>PUNTOS</span><b id="score">0</b></div>
       <div><span>RÉCORD</span><b id="best">0</b></div>
     </div>
+    <div id="mgRank"></div>
     <div id="mpScores"></div>
     <div id="mpStatus"><span id="mpReward"></span><span id="mpStatusText"></span></div>
     <div id="boardWrap"><div id="board"></div><div id="lifeBanner"></div></div>
@@ -1432,7 +1444,9 @@ function mpFinish() {
 
 // ---- pintar estado de la partida conjunta ----
 function mpRenderScores() {
+  $('mgRank').style.display = 'none';
   if (mode !== 'mp' && mode !== 'mg') return;
+  if (mode === 'mg') mgRankRender();
   const rows = mode === 'mg' ? mgResults() : mpResults();
   const el = $('mpScores');
   el.className = rows.length >= 4 ? 'n4' : rows.length === 3 ? 'n3' : '';
@@ -1523,6 +1537,44 @@ let mg = null;                               // partida guardada en este móvil
 const MG = { clients: [], online: false, tick: null, noticeT: null, n: 0, askedMid: 0, rival: null, busy: false, msgText: '', msgUntil: 0 };
 const mgOther = () => data.mgMe === 'M' ? 'G' : 'M';
 
+// ---- partidas ganadas: se guarda quién ganó cada partida (por su id). Es un registro que solo crece y se mezcla entre los dos
+// móviles, así que los dos ven lo mismo y una partida nunca cuenta dos veces. Cuenta desde que existe este apartado. ----
+const MGW_KEY = 'bloques_mgw';
+let MGW = {};
+function mgwLoad() {
+  try { const o = JSON.parse(localStorage.getItem(MGW_KEY) || '{}'); if (o && typeof o === 'object') mgwMerge(o, true); } catch (e) {}
+}
+function mgwMerge(o, quiet) {
+  let ch = false;
+  if (!o || typeof o !== 'object') return false;
+  for (const k of Object.keys(o)) {
+    if (!/^\d{10,15}$/.test(k) || !['M', 'G', 'T'].includes(o[k]) || MGW[k]) continue;
+    MGW[k] = o[k]; ch = true;
+  }
+  if (ch && !quiet) { try { localStorage.setItem(MGW_KEY, JSON.stringify(MGW)); } catch (e) {} }
+  return ch;
+}
+const mgwRecent = () => { const o = {}; Object.keys(MGW).sort().slice(-30).forEach(k => { o[k] = MGW[k]; }); return o; };
+function mgwCount(skipLast) {
+  const ks = Object.keys(MGW).sort(); if (skipLast) ks.pop();
+  const c = { M: 0, G: 0 };
+  ks.forEach(k => { if (MGW[k] !== 'T') c[MGW[k]]++; });
+  return c;
+}
+const mgwRank = c => ({ M: 1 + (c.G > c.M ? 1 : 0), G: 1 + (c.M > c.G ? 1 : 0) });
+function mgRankRender() {
+  const now = mgwCount(false), before = mgwCount(true), rn = mgwRank(now), rb = mgwRank(before);
+  const el = $('mgRank'), last = Object.keys(MGW).length > 0;
+  const ids = ['M', 'G'].sort((a, b) => (now[b] - now[a]) || (a < b ? -1 : 1));
+  el.innerHTML = '<small>Partidas ganadas</small>' + ids.map(k => {
+    const d = rb[k] - rn[k];            // positivo = ha subido en la última partida
+    const ar = last && d !== 0 ? '<span class="ar ' + (d > 0 ? 'up' : 'dn') + '">' + (d > 0 ? '▲' : '▼') + Math.abs(d) + '</span>' : '';
+    return '<div class="rk p' + rn[k] + (k === data.mgMe ? ' me' : '') + '"><span class="ps">' + rn[k] + '</span>' +
+           '<span class="nm">' + MG_NAMES[k] + '</span>' + ar + '<b class="wn">' + now[k] + '</b></div>';
+  }).join('');
+  el.style.display = 'flex';
+}
+
 function mgLoad() {
   try { const r = localStorage.getItem(MG_KEY); if (r) { const o = JSON.parse(r); if (o && o.mid && Array.isArray(o.grid)) { mg = o; if (mg.clr === undefined) mg.clr = mgClearAt(mg.score); } } } catch (e) {}
   try { const r = localStorage.getItem(MG_KEY + '_r'); if (r) MG.rival = JSON.parse(r); } catch (e) {}
@@ -1553,7 +1605,7 @@ function mgPersist() {
 const MG_BROKERS = MP_BROKERS.concat(['wss://mqtt.eclipseprojects.io:443/mqtt']);
 const mgOnline = () => MG.clients.some(c => c.connected);
 function mgMsg() {
-  return JSON.stringify({ v: 1, id: data.mgMe, mid: mg.mid, d: mg.diff, s: mg.score, l: mg.lives, b: mgBest(), o: mg.over ? 1 : 0, et: mg.et, ts: Date.now() });
+  return JSON.stringify({ v: 1, id: data.mgMe, mid: mg.mid, d: mg.diff, s: mg.score, l: mg.lives, b: mgBest(), o: mg.over ? 1 : 0, et: mg.et, ts: Date.now(), w: mgwRecent() });
 }
 function mgPublish() {
   if (!mg || !data.mgMe) return;
@@ -1579,6 +1631,8 @@ function mgOnMessage(topic, text) {
   if (!data.mgMe || who === data.mgMe || !MG_NAMES[who]) return;
   let m; try { m = JSON.parse(text); } catch (e) { return; }
   if (!m || m.v !== 1 || m.id !== who || !Number.isFinite(m.mid) || !Number.isFinite(m.s)) return;
+  const wch = mgwMerge(m.w);
+  if (wch && mode === 'mg') mgRankRender();
   const prev = MG.rival;
   const ts0 = Number.isFinite(m.ts) ? m.ts : 0;
   if (prev && ts0 < prev.ts) return;                                         // mensaje viejo (retenido en otro servidor)
@@ -1743,6 +1797,7 @@ function mgCheckFinish() {
   const winners = rows.filter(r => mpCmp(r, rows[0]) === 0);
   const mine = rows.find(r => r.me);
   const w = winners.length > 1 ? 2 : (winners[0].me ? 1 : 0);
+  mgwMerge({ [String(mg.mid)]: winners.length > 1 ? 'T' : winners[0].id }); mgPublish(); mgRankRender();
   data.games.push({ s: mine.total, d: Date.now(), df: gameDiff, mp: { n: [MG_NAMES[mgOther()]], w } });
   if (data.games.length > 100) data.games = data.games.slice(-100);
   saveData();
@@ -1988,7 +2043,7 @@ grid = emptyGrid();
 pieces = null; score = 0; best = data.bests.N; locked = false; over = true;
 drawDiff();
 applyTheme();
-mgLoad();
+mgLoad(); mgwLoad();
 showScreen('home');
 if (data.mgMe) mgConnect();
 
